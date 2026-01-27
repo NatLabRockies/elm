@@ -16,7 +16,7 @@ Then, install `pdftotext`:
 
     $ pip install pytesseract pdf2image
 
-At this point, you can install ELM per the [front-page README](https://github.com/NREL/elm/blob/main/README.rst) instructions, e.g.:
+At this point, you can install ELM per the [front-page README](https://github.com/NatLabRockies/elm/blob/main/README.rst) instructions, e.g.:
 
     $ pip install -e .
 
@@ -25,11 +25,11 @@ To do so, simply run:
 
     $ rebrowser_playwright install
 
-Now you are ready to run ordinance retrieval and extraction. See the [example](https://github.com/NREL/elm/blob/main/examples/ordinance_gpt/README.rst) to get started. If you get additional import errors, just install additional packages as necessary, e.g.:
+Now you are ready to run ordinance retrieval and extraction. See the [example](https://github.com/NatLabRockies/elm/blob/main/examples/ordinance_gpt/README.rst) to get started. If you get additional import errors, just install additional packages as necessary, e.g.:
 
     $ pip install beautifulsoup4 html5lib
 
 
 ## Architecture
 
-For information on the architectural design of this code, see the [design document](https://nrel.github.io/elm/dev/ords_architecture.html).
+For information on the architectural design of this code, see the [design document](https://natlabrockies.github.io/elm/dev/ords_architecture.html).

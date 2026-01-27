@@ -17,7 +17,7 @@ Notes:
 Downloading and Embedding PDFs
 ==============================
 
-Run ``python ./retrieve_docs.py`` to retrieve 20 of the latest NREL technical
+Run ``python ./retrieve_docs.py`` to retrieve 20 of the latest NLR technical
 reports from OSTI. The script then converts the PDFs to text and then runs the
 text through the OpenAI embedding model.
 

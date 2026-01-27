@@ -45,8 +45,9 @@ def test_no_api_key_var():
 
 @pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") == "true",
                     reason="Fails in GHA due to rate limiting")
-@pytest.mark.parametrize("queries", [['1. "NREL elm"'],
-                                     ['1. "NREL elm"', "NREL reV"],])
+@pytest.mark.parametrize("queries", [['1. "NatLabRockies elm"'],
+                                     ['1. "NatLabRockies elm"',
+                                      "NatLabRockies reV"],])
 @pytest.mark.parametrize("se", SE_API_TO_TEST)
 @pytest.mark.asyncio
 async def test_basic_search_query(queries, se):

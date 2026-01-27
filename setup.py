@@ -25,13 +25,13 @@ test_requires = ["pytest>=5.2", "pytest-mock", "pytest-asyncio", "pytest-cov",
 description = "Energy Language Model"
 
 setup(
-    name="nrel_elm",
+    name="nlr_elm",
     version=version,
     description=description,
     long_description=readme,
     author="Grant Buster",
-    author_email="grant.buster@nrel.gov",
-    url="https://github.com/NREL/elm",
+    author_email="grant.buster@nlr.gov",
+    url="https://github.com/NatLabRockies/elm",
     packages=find_packages(),
     package_dir={"elm": "elm"},
     license="BSD 3-Clause",

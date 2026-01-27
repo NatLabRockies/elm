@@ -17,8 +17,8 @@ class ProfilesRecord(dict):
     """Class to handle a single profiles as dictionary data.
     This class requires setting an 'RHUB_API_KEY' environment
     variable to access the Pure Web Service. The API key can be
-    obtained by contacting an NREL library representative:
-    Library@nrel.gov.
+    obtained by contacting an NLR library representative:
+    Library@nlr.gov.
     """
     def __init__(self, record):
         """
@@ -333,8 +333,8 @@ class ProfilesList(list):
     """Class to retrieve and handle multiple profiles from an API URL.
     This class requires setting an 'RHUB_API_KEY' environment
     variable to access the Pure Web Service. The API key can be
-    obtained by contacting an NREL library representative:
-    Library@nrel.gov.
+    obtained by contacting an NLR library representative:
+    Library@nlr.gov.
     """
     def __init__(self, url, n_pages=1):
         """
@@ -497,8 +497,8 @@ class PublicationsRecord(dict):
     """Class to handle a single publication as dictionary data.
     This class requires setting an 'RHUB_API_KEY' environment
     variable to access the Pure Web Service. The API key can be
-    obtained by contacting an NREL library representative:
-    Library@nrel.gov.
+    obtained by contacting an NLR library representative:
+    Library@nlr.gov.
     """
     def __init__(self, record):
         """
@@ -736,8 +736,8 @@ class PublicationsList(list):
     """Class to retrieve and handle multiple publications from an API URL.
     This class requires setting an 'RHUB_API_KEY' environment
     variable to access the Pure Web Service. The API key can be
-    obtained by contacting an NREL library representative:
-    Library@nrel.gov.
+    obtained by contacting an NLR library representative:
+    Library@nlr.gov.
     """
     def __init__(self, url, n_pages=1):
         """
