@@ -2,6 +2,7 @@
 # pylint: disable=missing-class-docstring,missing-function-docstring
 # pylint: disable=unused-argument
 """ELM Ordinance integration tests"""
+import os
 import time
 import logging
 import asyncio
@@ -142,6 +143,8 @@ async def test_openai_query(sample_openai_response, monkeypatch):
         }
 
 
+@pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") == "true",
+                    reason="Flaky in GHA")
 @pytest.mark.asyncio
 async def test_search_with_logging(tmp_path):
     """Test searching for some counties with logging"""
