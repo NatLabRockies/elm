@@ -5,7 +5,7 @@ In this directory, we provide a set of examples that demonstrate how to use ELM 
 - [`Custom web information retrieval using search engines`](./example_search_retrieval_wiki.ipynb)
 
     In this example, we demonstrate how to set up your own end-to-end web and information retrieval pipeline.
-    Specifically, we set up a procedure to extract the name of NREL's current director using only Wikipedia articles.
+    Specifically, we set up a procedure to extract the name of NLR's current director using only Wikipedia articles.
 
 > [!NOTE]
 > Due to the non-deterministic nature of several pipeline components (Google search, LLM), you may get

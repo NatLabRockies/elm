@@ -14,6 +14,9 @@ import elm.web.search.duckduckgo
 import elm.web.search.bing
 import elm.web.search.yahoo
 
+pytestmark = pytest.mark.skipif(os.getenv("GITHUB_ACTIONS") == "true",
+                                reason="Flaky in GHA")
+
 SE_TO_TEST = [(elm.web.search.bing.PlaywrightBingLinkSearch, {}),
               (elm.web.search.yahoo.PlaywrightYahooLinkSearch, {})]
 if CSE_ID := os.getenv("GOOGLE_CSE_ID"):

@@ -14,7 +14,7 @@ langchain-text-splitters
 lxml
 matplotlib
 networkx
-nrel-rex
+nlr-rex
 nltk
 numpy
 pandas

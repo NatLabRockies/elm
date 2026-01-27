@@ -17,7 +17,7 @@ init_logger(__name__, log_level='DEBUG')
 init_logger('elm', log_level='INFO')
 
 
-# NREL-Azure endpoint. You can also use just the openai endpoint.
+# NLR-Azure endpoint. You can also use just the openai endpoint.
 # NOTE: embedding values are different between OpenAI and Azure models!
 openai.api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
 openai.api_key = os.getenv("AZURE_OPENAI_KEY")

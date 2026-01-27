@@ -326,11 +326,11 @@ resources, we can use ``Services`` to monitor their use as well! Let's look at a
 
 
 There are several other services provided out of the box - see the
-`documentation <https://nrel.github.io/elm/_autosummary/elm.ords.services.html>`_ for details
+`documentation <https://natlabrockies.github.io/elm/_autosummary/elm.ords.services.html>`_ for details
 Alternatively, we provide two base classes that you can extend to get similar functionality:
-`ThreadedService <https://nrel.github.io/elm/_autosummary/elm.ords.services.threaded.ThreadedService.html#elm.ords.services.threaded.ThreadedService>`_
+`ThreadedService <https://natlabrockies.github.io/elm/_autosummary/elm.ords.services.threaded.ThreadedService.html#elm.ords.services.threaded.ThreadedService>`_
 for threaded tasks and
-`ProcessPoolService <https://nrel.github.io/elm/_autosummary/elm.ords.services.cpu.ProcessPoolService.html#elm.ords.services.cpu.ProcessPoolService>`_
+`ProcessPoolService <https://natlabrockies.github.io/elm/_autosummary/elm.ords.services.cpu.ProcessPoolService.html#elm.ords.services.cpu.ProcessPoolService>`_
 for multiprocessing tasks.
 
 **4.2 Key Classes**
@@ -763,9 +763,9 @@ We give a rough breakdown of the following call:
     from elm.web.search import web_search_links_as_docs
 
     QUERIES = [
-        "NREL wiki",
+        "NLR wiki",
         "National Renewable Energy Laboratory director",
-        "NREL leadership wikipedia",
+        "NLR leadership wikipedia",
     ]
 
     async def main():
