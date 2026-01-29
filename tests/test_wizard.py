@@ -26,8 +26,8 @@ class MockObject:
 class MockClass:
     """Dummy class to mock various api calls"""
 
-    @staticmethod
-    def get_embedding(*args, **kwargs):  # pylint: disable=unused-argument
+    # pylint: disable=unused-argument
+    def get_embedding(self, *args, **kwargs):
         """Mock for ChunkAndEmbed.call_api()"""
         embedding = np.random.uniform(0, 1, 10)
         return embedding

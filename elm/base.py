@@ -26,6 +26,9 @@ class ApiBase(ABC):
     EMBEDDING_MODEL = 'text-embedding-ada-002'
     """Default model to do text embeddings."""
 
+    USE_CLIENT_EMBEDDINGS = False
+    """Option to use AzureOpenAI client for embedding calls."""
+
     EMBEDDING_URL = 'https://api.openai.com/v1/embeddings'
     """OpenAI embedding API URL"""
 
@@ -138,6 +141,41 @@ class ApiBase(ABC):
                 async with session.post(**kwargs) as response:
                     out = await response.json()
 
+        except Exception as e:
+            logger.debug(f'Error in OpenAI API call from '
+                         f'`aiohttp.ClientSession().post(**kwargs)` with '
+                         f'kwargs: {kwargs}')
+            logger.exception('Error in OpenAI API call! Turn on debug logging '
+                             'to see full query that caused error.')
+            out = {'error': str(e)}
+
+        return out
+
+    @staticmethod
+    async def call_client_embedding(client, request_json):
+        """Call OpenAI embedding API using client.
+
+        Parameters
+        ----------
+        client : openai.azure.AzureOpenAI
+            Optional OpenAI client to use for embedding calls.
+        request_json : mapping
+            Mapping of request json for embedding call (to be passed
+            to ``client.embeddings.create()``).
+
+        Returns
+        -------
+        dict
+            Embeddings response in json format. Will contain an
+            'error' key if there was an error while processing the API
+            call.
+        """
+        out = None
+        kwargs = dict(request_json)
+
+        try:
+            response = client.embeddings.create(**kwargs)
+            out = response.model_dump_json(indent=2)
         except Exception as e:
             logger.debug(f'Error in OpenAI API call from '
                          f'`aiohttp.ClientSession().post(**kwargs)` with '
@@ -320,8 +358,7 @@ class ApiBase(ABC):
 
         return out
 
-    @classmethod
-    def get_embedding(cls, text):
+    def get_embedding(self, text):
         """Get the 1D array (list) embedding of a text string.
 
         Parameters
@@ -334,9 +371,23 @@ class ApiBase(ABC):
         embedding : list
             List of float that represents the numerical embedding of the text
         """
-        kwargs = dict(url=cls.EMBEDDING_URL,
-                      headers=cls.HEADERS,
-                      json={'model': cls.EMBEDDING_MODEL,
+        if self.USE_CLIENT_EMBEDDINGS:
+            kwargs = dict(input=text, model=self.EMBEDDING_MODEL)
+            response = self._client.embeddings.create(**kwargs)
+
+            try:
+                embedding = response.data[0].embedding
+            except Exception as exc:
+                msg = ('Embedding request failed: {} {}'
+                    .format(out.reason, embedding))
+                logger.error(msg)
+                raise RuntimeError(msg) from exc
+
+            return embedding
+
+        kwargs = dict(url=self.EMBEDDING_URL,
+                      headers=self.HEADERS,
+                      json={'model': self.EMBEDDING_MODEL,
                             'input': text})
 
         out = requests.post(**kwargs)
@@ -485,10 +536,10 @@ class ApiQueue:
 
                 elif tokens < avail_tokens:
                     token_count += tokens
-                    task = asyncio.create_task(ApiBase.call_api(self.url,
-                                                                self.headers,
-                                                                request),
-                                               name=self.job_names[ijob])
+                    task = asyncio.create_task(
+                        self._get_call_api_coro(request),
+                        name=self.job_names[ijob])
+
                     self.api_jobs[ijob] = task
                     self.tries[ijob] += 1
                     self._tsub = time.time()
@@ -505,6 +556,10 @@ class ApiQueue:
             elif token_count >= avail_tokens:
                 token_count = 0
                 break
+
+    def _get_call_api_coro(self, request):
+        """Convenience function to get the appropriate API call coroutine"""
+        return ApiBase.call_api(self.url, self.headers, request)
 
     async def collect_jobs(self):
         """Collect asyncronous API calls and API outputs. Store outputs in the
@@ -582,3 +637,43 @@ class ApiQueue:
                 time.sleep(5)
 
         return self.out
+
+
+class ClientEmbeddingsApiQueue(ApiQueue):
+    """Class to manage the parallel API embedding submissions using a client"""
+
+    def __init__(self, client, request_jsons, ignore_error=None,
+                 rate_limit=40e3, max_retries=10):
+        """
+
+        Parameters
+        ----------
+        client : openai.AzureOpenAI | openai.OpenAI
+            OpenAI client object to use for API calls.
+        request_jsons : list
+            List of API data input, one entry typically looks like this for
+            chat completion:
+                {"model": "gpt-3.5-turbo",
+                 "messages": [{"role": "system", "content": "You do this..."},
+                              {"role": "user", "content": "Do this: {}"}],
+                 "temperature": 0.0}
+        ignore_error : None | callable
+            Optional callable to parse API error string. If the callable
+            returns True, the error will be ignored, the API call will not be
+            tried again, and the output will be an empty string.
+        rate_limit : float
+            OpenAI API rate limit (tokens / minute). Note that the
+            gpt-3.5-turbo limit is 90k as of 4/2023, but we're using a large
+            factor of safety (~1/2) because we can only count the tokens on the
+            input side and assume the output is about the same count.
+        max_retries : int
+            Number of times to retry an API call wi
+        """
+        super().__init__(url=None, headers=None, request_jsons=request_jsons,
+                         ignore_error=ignore_error,
+                         rate_limit=rate_limit, max_retries=max_retries)
+        self.client = client
+
+    def _get_call_api_coro(self, request):
+        """Convenience function to get the appropriate API call coroutine"""
+        return ApiBase.call_client_embedding(self.client, request)
