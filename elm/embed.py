@@ -174,7 +174,7 @@ class ChunkAndEmbed(ApiBase):
 
     async def call_embedding_async(self, all_request_jsons,
                                    ignore_error=None, rate_limit=40e3):
-        """Use GPT to clean raw pdf text in parallel calls to the OpenAI API.
+        """Use an OpenAI API client to generate embeddings for text.
 
         NOTE: you need to call this using the await command in ipython or
         jupyter, e.g.: `out = await PDFtoTXT.clean_txt_async()`
