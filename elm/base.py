@@ -186,7 +186,7 @@ class ApiBase(ABC):
 
         return out
 
-    async def call_api_async(self, all_request_jsons,
+    async def call_api_async(self, url, headers, all_request_jsons,
                              ignore_error=None, rate_limit=40e3):
         """Use GPT to clean raw pdf text in parallel calls to the OpenAI API.
 
@@ -195,6 +195,14 @@ class ApiBase(ABC):
 
         Parameters
         ----------
+        url : str
+            OpenAI API url, typically either:
+                https://api.openai.com/v1/embeddings
+                https://api.openai.com/v1/chat/completions
+        headers : dict
+            OpenAI API headers, typically:
+                {"Content-Type": "application/json",
+                 "Authorization": f"Bearer {openai.api_key}"}
         all_request_jsons : list
             List of API data input, one entry typically looks like this for
             chat completion:
@@ -218,17 +226,9 @@ class ApiBase(ABC):
             List of API outputs where each list entry is a GPT answer from the
             corresponding message in the all_request_jsons input.
         """
-        if self.USE_CLIENT_EMBEDDINGS:
-            self.api_queue = ClientEmbeddingsApiQueue(self._client,
-                                                      all_request_jsons,
-                                                      ignore_error,
-                                                      rate_limit=rate_limit)
-        else:
-            self.api_queue = ApiQueue(self.EMBEDDING_URL, self.EMBEDDING_URL,
-                                      all_request_jsons,
-                                      ignore_error=ignore_error,
-                                      rate_limit=rate_limit)
-
+        self.api_queue = ApiQueue(url, headers, all_request_jsons,
+                                  ignore_error=ignore_error,
+                                  rate_limit=rate_limit)
         out = await self.api_queue.run()
         return out
 
