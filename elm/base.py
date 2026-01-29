@@ -642,7 +642,6 @@ class ApiQueue:
 class ClientEmbeddingsApiQueue(ApiQueue):
     """Class to manage the parallel API embedding submissions using a client"""
 
-
     def __init__(self, client, request_jsons, ignore_error=None,
                  rate_limit=40e3, max_retries=10):
         """
