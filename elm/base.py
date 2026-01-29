@@ -520,10 +520,10 @@ class ApiQueue:
 
                 elif tokens < avail_tokens:
                     token_count += tokens
-                    task = asyncio.create_task(ApiBase.call_api(self.url,
-                                                                self.headers,
-                                                                request),
-                                               name=self.job_names[ijob])
+                    task = asyncio.create_task(
+                        self._get_call_api_coro(request),
+                        name=self.job_names[ijob])
+
                     self.api_jobs[ijob] = task
                     self.tries[ijob] += 1
                     self._tsub = time.time()
@@ -540,6 +540,10 @@ class ApiQueue:
             elif token_count >= avail_tokens:
                 token_count = 0
                 break
+
+    def _get_call_api_coro(self, request):
+        """Convenience function to get the appropriate API call coroutine"""
+        return ApiBase.call_api(self.url, self.headers, request)
 
     async def collect_jobs(self):
         """Collect asyncronous API calls and API outputs. Store outputs in the
@@ -617,3 +621,44 @@ class ApiQueue:
                 time.sleep(5)
 
         return self.out
+
+
+class ClientEmbeddingsApiQueue(ApiQueue):
+    """Class to manage the parallel API embedding submissions using a client"""
+
+
+    def __init__(self, client, request_jsons, ignore_error=None,
+                 rate_limit=40e3, max_retries=10):
+        """
+
+        Parameters
+        ----------
+        client : openai.AzureOpenAI | openai.OpenAI
+            OpenAI client object to use for API calls.
+        request_jsons : list
+            List of API data input, one entry typically looks like this for
+            chat completion:
+                {"model": "gpt-3.5-turbo",
+                 "messages": [{"role": "system", "content": "You do this..."},
+                              {"role": "user", "content": "Do this: {}"}],
+                 "temperature": 0.0}
+        ignore_error : None | callable
+            Optional callable to parse API error string. If the callable
+            returns True, the error will be ignored, the API call will not be
+            tried again, and the output will be an empty string.
+        rate_limit : float
+            OpenAI API rate limit (tokens / minute). Note that the
+            gpt-3.5-turbo limit is 90k as of 4/2023, but we're using a large
+            factor of safety (~1/2) because we can only count the tokens on the
+            input side and assume the output is about the same count.
+        max_retries : int
+            Number of times to retry an API call wi
+        """
+        super().__init__(url=None, headers=None, request_jsons=request_jsons,
+                         ignore_error=ignore_error,
+                         rate_limit=rate_limit, max_retries=max_retries)
+        self.client = client
+
+    def _get_call_api_coro(self, request):
+        """Convenience function to get the appropriate API call coroutine"""
+        return ApiBase.call_client_embedding(self.client, request)
