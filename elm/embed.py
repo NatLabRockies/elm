@@ -3,11 +3,12 @@
 ELM text embedding
 """
 import openai
+import json
 import re
 import os
 import logging
 
-from elm.base import ApiBase
+from elm.base import ApiBase, ApiQueue, ClientEmbeddingsApiQueue
 from elm.chunk import Chunker
 
 
@@ -20,7 +21,7 @@ class ChunkAndEmbed(ApiBase):
     DEFAULT_MODEL = 'text-embedding-ada-002'
     """Default model to do embeddings."""
 
-    def __init__(self, text, model=None, **chunk_kwargs):
+    def __init__(self, text, model=None, client=None, **chunk_kwargs):
         """
         Parameters
         ----------
@@ -30,6 +31,10 @@ class ChunkAndEmbed(ApiBase):
         model : None | str
             Optional specification of OpenAI model to use. Default is
             cls.DEFAULT_MODEL
+        client : openai.azure.AzureOpenAI | None
+            Optional OpenAI client to use for embedding calls. If
+            ``None``, a client is set up using environment variables.
+            By default, ``None``.
         chunk_kwargs : dict | None
             kwargs for initialization of :class:`elm.chunk.Chunker`
         """
@@ -37,6 +42,8 @@ class ChunkAndEmbed(ApiBase):
         super().__init__(model)
 
         self.text = text
+        if client is not None:
+            self._client = client
 
         if os.path.isfile(text):
             logger.info('Loading text file: {}'.format(text))
@@ -142,17 +149,17 @@ class ChunkAndEmbed(ApiBase):
         for chunk in self.text_chunks:
             req = {"input": chunk, "model": self.model}
 
-            if 'azure' in str(openai.api_type).lower():
+            if 'embedding' not in str(self.model).lower():
                 req['engine'] = self.model
 
             all_request_jsons.append(req)
 
-        embeddings = await self.call_api_async(self.EMBEDDING_URL,
-                                               self.HEADERS,
-                                               all_request_jsons,
-                                               rate_limit=rate_limit)
+        embeddings = await self.call_embedding_async(all_request_jsons,
+                                                     rate_limit=rate_limit)
 
         for i, chunk in enumerate(embeddings):
+            if self.USE_CLIENT_EMBEDDINGS:
+                chunk = json.loads(chunk)
             try:
                 embeddings[i] = chunk['data'][0]['embedding']
             except Exception:
@@ -164,3 +171,49 @@ class ChunkAndEmbed(ApiBase):
         logger.info('Finished all embeddings.')
 
         return embeddings
+
+    async def call_embedding_async(self, all_request_jsons,
+                                   ignore_error=None, rate_limit=40e3):
+        """Use GPT to clean raw pdf text in parallel calls to the OpenAI API.
+
+        NOTE: you need to call this using the await command in ipython or
+        jupyter, e.g.: `out = await PDFtoTXT.clean_txt_async()`
+
+        Parameters
+        ----------
+        all_request_jsons : list
+            List of API data input, one entry typically looks like this for
+            chat completion:
+                {"model": "gpt-3.5-turbo",
+                 "messages": [{"role": "system", "content": "You do this..."},
+                              {"role": "user", "content": "Do this: {}"}],
+                 "temperature": 0.0}
+        ignore_error : None | callable
+            Optional callable to parse API error string. If the callable
+            returns True, the error will be ignored, the API call will not be
+            tried again, and the output will be an empty string.
+        rate_limit : float
+            OpenAI API rate limit (tokens / minute). Note that the
+            gpt-3.5-turbo limit is 90k as of 4/2023, but we're using a large
+            factor of safety (~1/2) because we can only count the tokens on the
+            input side and assume the output is about the same count.
+
+        Returns
+        -------
+        out : list
+            List of API outputs where each list entry is a GPT answer from the
+            corresponding message in the all_request_jsons input.
+        """
+        if self.USE_CLIENT_EMBEDDINGS:
+            self.api_queue = ClientEmbeddingsApiQueue(self._client,
+                                                      all_request_jsons,
+                                                      ignore_error,
+                                                      rate_limit=rate_limit)
+        else:
+            self.api_queue = ApiQueue(self.EMBEDDING_URL, self.EMBEDDING_URL,
+                                      all_request_jsons,
+                                      ignore_error=ignore_error,
+                                      rate_limit=rate_limit)
+
+        out = await self.api_queue.run()
+        return out
