@@ -148,7 +148,42 @@ class ApiBase(ABC):
 
         return out
 
-    async def call_api_async(self, url, headers, all_request_jsons,
+    @staticmethod
+    async def call_client_embedding(client, request_json):
+        """Call OpenAI embedding API using client.
+
+        Parameters
+        ----------
+        client : openai.azure.AzureOpenAI
+            Optional OpenAI client to use for embedding calls.
+        request_json : mapping
+            Mapping of request json for embedding call (to be passed
+            to ``client.embeddings.create()``).
+
+        Returns
+        -------
+        dict
+            Embeddings response in json format. Will contain an
+            'error' key if there was an error while processing the API
+            call.
+        """
+        out = None
+        kwargs = dict(request_json)
+
+        try:
+            response = client.embeddings.create(**kwargs)
+            out = response.model_dump_json(indent=2)
+        except Exception as e:
+            logger.debug(f'Error in OpenAI API call from '
+                         f'`aiohttp.ClientSession().post(**kwargs)` with '
+                         f'kwargs: {kwargs}')
+            logger.exception('Error in OpenAI API call! Turn on debug logging '
+                             'to see full query that caused error.')
+            out = {'error': str(e)}
+
+        return out
+
+    async def call_api_async(self, all_request_jsons,
                              ignore_error=None, rate_limit=40e3):
         """Use GPT to clean raw pdf text in parallel calls to the OpenAI API.
 
