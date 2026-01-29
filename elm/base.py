@@ -26,6 +26,9 @@ class ApiBase(ABC):
     EMBEDDING_MODEL = 'text-embedding-ada-002'
     """Default model to do text embeddings."""
 
+    USE_CLIENT_EMBEDDINGS = False
+    """Option to use AzureOpenAI client for embedding calls."""
+
     EMBEDDING_URL = 'https://api.openai.com/v1/embeddings'
     """OpenAI embedding API URL"""
 
@@ -355,8 +358,7 @@ class ApiBase(ABC):
 
         return out
 
-    @classmethod
-    def get_embedding(cls, text):
+    def get_embedding(self, text):
         """Get the 1D array (list) embedding of a text string.
 
         Parameters
@@ -369,9 +371,23 @@ class ApiBase(ABC):
         embedding : list
             List of float that represents the numerical embedding of the text
         """
-        kwargs = dict(url=cls.EMBEDDING_URL,
-                      headers=cls.HEADERS,
-                      json={'model': cls.EMBEDDING_MODEL,
+        if self.USE_CLIENT_EMBEDDINGS:
+            kwargs = dict(input=text, model=self.EMBEDDING_MODEL)
+            response = self._client.embeddings.create(**kwargs)
+
+            try:
+                embedding = response.data[0].embedding
+            except Exception as exc:
+                msg = ('Embedding request failed: {} {}'
+                    .format(out.reason, embedding))
+                logger.error(msg)
+                raise RuntimeError(msg) from exc
+
+            return embedding
+
+        kwargs = dict(url=self.EMBEDDING_URL,
+                      headers=self.HEADERS,
+                      json={'model': self.EMBEDDING_MODEL,
                             'input': text})
 
         out = requests.post(**kwargs)
