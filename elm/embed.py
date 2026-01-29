@@ -80,7 +80,7 @@ class ChunkAndEmbed(ApiBase):
 
         return '\n'.join(lines)
 
-    def run(self, rate_limit=175e3):
+    def run(self, rate_limit=175e3):  # pylint: disable=unused-argument
         """Run text embedding in serial
 
         Parameters
