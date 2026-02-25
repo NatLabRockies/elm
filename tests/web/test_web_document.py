@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """ELM Web Document class tests"""
+
 from pathlib import Path
 
 import pytest
@@ -113,9 +114,27 @@ def test_doc_repr():
     c = PDFDocument(["a"] * 1543)
     c.attrs = {"A": "some text", "b": pd.DataFrame({"Test": ["a"] * 1953})}
 
-    expected_repr = ("PDFDocument with 1,543 pages\nAttrs:\n  A:\tsome text\n"
-                     "  b:\tDataFrame with 1,953 rows")
+    expected_repr = (
+        "PDFDocument with 1,543 pages\nAttrs:\n  A:\tsome text\n"
+        "  b:\tDataFrame with 1,953 rows"
+    )
     assert repr(c) == expected_repr
+
+
+def test_doc_repr_multiline_attr_shortened():
+    """Test repr shortens multiline attribute values to one line"""
+
+    doc = PDFDocument(["a"])
+    long_key = "x" * 100
+    multiline_val = "Line 1\nLine 2 with lots of extra text to shorten"
+    doc.attrs = {long_key: multiline_val}
+
+    doc_repr = repr(doc)
+    attr_line = doc_repr.split("\n")[-1]
+    shown_val = attr_line.split("\t", maxsplit=1)[-1]
+
+    assert "\n" not in shown_val
+    assert len(shown_val) <= 10
 
 
 @pytest.mark.parametrize("pages", ([], ["aaa"], ["\n\n", "\n", "\r3"]))
@@ -129,13 +148,15 @@ def test_doc_is_empty(pages):
 def test_html_string_is_empty_doc():
     """Test that doc with just html text is empty"""
 
-    html_str = ('<!DOCTYPE html><html><head></head><body style="height: 100%; '
-                'width: 100%; overflow: hidden; margin:0px; background-color: '
-                'rgb(38, 38, 38);"><embed '
-                'name="0AA1AAF79D1EC03DEFB5B45B5529FA56" '
-                'style="position:absolute; left: 0; top: 0;" width="100%" '
-                'height="100%" src="about:blank" type="application/pdf" '
-                'internalid="0AA1AAF79D1EC03DEFB5B45B5529FA56"></body></html>')
+    html_str = (
+        '<!DOCTYPE html><html><head></head><body style="height: 100%; '
+        "width: 100%; overflow: hidden; margin:0px; background-color: "
+        'rgb(38, 38, 38);"><embed '
+        'name="0AA1AAF79D1EC03DEFB5B45B5529FA56" '
+        'style="position:absolute; left: 0; top: 0;" width="100%" '
+        'height="100%" src="about:blank" type="application/pdf" '
+        'internalid="0AA1AAF79D1EC03DEFB5B45B5529FA56"></body></html>'
+    )
     assert HTMLDocument([html_str]).empty
 
 
