@@ -4,6 +4,7 @@ import re
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from functools import cached_property
+from textwrap import shorten
 import logging
 
 import pandas as pd
@@ -71,8 +72,15 @@ class BaseDocument(ABC):
             attrs[k] = v
 
         indent = max(len(k) for k in attrs) + 2
-        attrs = "\n".join([f"{k:>{indent}}:\t{v}"
-                           for k, v in attrs.items()])
+        width = max(10, 80 - (indent + 4))
+        to_join = []
+        for k, v in attrs.items():
+            v_str = str(v)
+            if "\n" in v_str:
+                v_str = shorten(v_str, width=width)
+            to_join.append(f"{k:>{indent}}:\t{v_str}")
+
+        attrs = "\n".join(to_join)
         return f"{header}\n{attrs}"
 
     @property
