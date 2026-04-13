@@ -4,6 +4,7 @@ import asyncio
 import logging
 from pathlib import Path
 from abc import ABC, abstractmethod
+from warnings import warn
 
 import aiohttp
 from fake_useragent import UserAgent
@@ -465,6 +466,14 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
     async def _fetch_doc(self, source):
         """Load a doc by reading file based on extension"""
         fp = Path(source)
+
+        if not fp.exists():
+            msg = (f"Trying to load file {fp} but it does not exist. Please "
+                   "double-check the file path.")
+            logger.warning(msg)
+            warn(msg, UserWarning)
+            return PDFDocument(pages=[]), None
+
         if fp.suffix.lower() == ".pdf":
             logger.debug("Trying to read PDF file: %r", source)
             doc, raw = await self.pdf_read_coroutine(fp,
