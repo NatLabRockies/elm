@@ -145,7 +145,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         keyword-argument pairs that you can use to initialize the search
         engines in the `search_engines` input. If ``pw_launch_kwargs``
         is detected, it will be added to the kwargs for all of the
-        PLaywright-based search engines so that you do not have to
+        Playwright-based search engines so that you do not have to
         repeatedly specify the launch parameters. For example, you may
         specify ``pw_launch_kwargs={"headless": False}`` to
         have all Playwright-based searches show the browser and _also_
