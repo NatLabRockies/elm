@@ -51,39 +51,14 @@ async def _read_html_file(html_fp, **kwargs):
 class BaseAsyncFileLoader(ABC):
     """Base class for async file loading"""
 
-    def __init__(
-        self,
-        pdf_read_coroutine,
-        html_read_coroutine,
-        pdf_read_kwargs=None,
-        html_read_kwargs=None,
-        pdf_ocr_read_coroutine=None,
-        file_cache_coroutine=None,
-        **__,  # consume any extra kwargs
-    ):
+    def __init__(self,
+                 file_cache_coroutine=None,
+                 **__,  # consume any extra kwargs
+                 ):
         """
 
         Parameters
         ----------
-        pdf_read_coroutine : callable
-            PDF file read coroutine. Must by an async function.
-            Must return a :obj:`elm.web.document.PDFDocument`.
-        html_read_coroutine : callable, optional
-            HTML file read coroutine. Must by an async function.
-            Must return a :obj:`elm.web.document.HTMLDocument`.
-        pdf_read_kwargs : dict, optional
-            Keyword-value argument pairs to pass to the
-            `pdf_read_coroutine`. By default, ``None``.
-        html_read_kwargs : dict, optional
-            Keyword-value argument pairs to pass to the
-            `html_read_coroutine`. By default, ``None``.
-        pdf_ocr_read_coroutine : callable, optional
-            PDF OCR file read coroutine. Must by an async function.
-            Should accept PDF bytes as the first argument and kwargs as
-            the rest. Must return a :obj:`elm.web.document.PDFDocument`.
-            If ``None``, PDF OCR parsing is not attempted, and any
-            scanned PDF URL's will return a blank document.
-            By default, ``None``.
         file_cache_coroutine : callable, optional
             File caching coroutine. Can be used to cache files
             downloaded by this class. Must accept an
@@ -92,11 +67,6 @@ class BaseAsyncFileLoader(ABC):
             argument. If this method is not provided, no document
             caching is performed. By default, ``None``.
         """
-        self.pdf_read_coroutine = pdf_read_coroutine
-        self.html_read_coroutine = html_read_coroutine
-        self.pdf_read_kwargs = pdf_read_kwargs or {}
-        self.html_read_kwargs = html_read_kwargs or {}
-        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.file_cache_coroutine = file_cache_coroutine
 
     async def fetch_all(self, *sources):
@@ -276,14 +246,12 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
         """
-        super().__init__(
-            pdf_read_coroutine=pdf_read_coroutine or _read_pdf_doc,
-            html_read_coroutine=html_read_coroutine or _read_html_doc,
-            pdf_read_kwargs=pdf_read_kwargs,
-            html_read_kwargs=html_read_kwargs,
-            pdf_ocr_read_coroutine=pdf_ocr_read_coroutine,
-            file_cache_coroutine=file_cache_coroutine
-        )
+        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
+        self.html_read_coroutine = html_read_coroutine or _read_html_doc
+        self.pdf_read_kwargs = pdf_read_kwargs or {}
+        self.html_read_kwargs = html_read_kwargs or {}
+        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.pw_launch_kwargs = pw_launch_kwargs or {}
         self.get_kwargs = {
             "headers": self._header_from_template(header_template),
@@ -453,14 +421,12 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
             Additional document attributes to add to each loaded
             document. By default, ``None``.
         """
-        super().__init__(
-            pdf_read_coroutine=pdf_read_coroutine or _read_pdf_file,
-            html_read_coroutine=html_read_coroutine or _read_html_file,
-            pdf_read_kwargs=pdf_read_kwargs,
-            html_read_kwargs=html_read_kwargs,
-            pdf_ocr_read_coroutine=pdf_ocr_read_coroutine,
-            file_cache_coroutine=file_cache_coroutine
-        )
+        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_file
+        self.html_read_coroutine = html_read_coroutine or _read_html_file
+        self.pdf_read_kwargs = pdf_read_kwargs or {}
+        self.html_read_kwargs = html_read_kwargs or {}
+        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.doc_attrs = doc_attrs or {}
 
     async def _fetch_doc(self, source):
