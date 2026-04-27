@@ -247,35 +247,21 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
         self.pdf_read_kwargs = pdf_read_kwargs or {}
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
-        self.get_kwargs = {
-            "headers": self._header_from_template(header_template),
-            "ssl": None if verify_ssl else False,
-            **(aget_kwargs or {}),
-        }
+        self.content_fetcher = AsyncFetchWithRetry(
+            header_template=header_template, verify_ssl=verify_ssl,
+            aget_kwargs=None)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
             html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
             browser_semaphore=browser_semaphore, use_scrapling_stealth=use_scrapling_stealth,
             num_pw_html_retries=num_pw_html_retries)
 
-    def _header_from_template(self, header_template):
-        """Compile header from user or default template"""
-        headers = header_template or DEFAULT_HEADERS
-        headers = dict(headers)
-        if not headers.get("User-Agent"):
-            headers["User-Agent"] = UserAgent().random
-        return headers
-
     async def _fetch_doc(self, url):
         """Fetch a doc by trying pdf read, then HTML read, then PDF OCR"""
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                logger.debug("Fetching content from %r", url)
-                out = await self._fetch_content_with_retry(url, session)
-            except ELMRuntimeError:
-                logger.exception("Could not fetch content from %r", url)
-                return PDFDocument(pages=[]), None
+        out = await self.content_fetcher.fetch(url)
+        if out is None:
+            return PDFDocument(pages=[]), None
 
         raw_content, ct, charset = out
         logger.debug("Got content from %r", url)
@@ -296,6 +282,56 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             )
 
         return doc, raw_content
+
+
+class AsyncFetchWithRetry:
+    """Loader for fetching content from the web with retry attempts"""
+
+    def __init__(self, header_template=None, verify_ssl=True,
+                 aget_kwargs=None, client_kwargs=None):
+        """
+
+        Parameters
+        ----------
+        header_template : dict, optional
+            Optional GET header template. If not specified, uses
+            :obj:`~elm.web.utilities.DEFAULT_HEADERS`.
+            By default, ``None``.
+        verify_ssl : bool, optional
+            Option to use aiohttp's default SSL check. If ``False``,
+            SSL certificate validation is skipped. By default, ``True``.
+        aget_kwargs : dict, optional
+            Other kwargs to pass to :meth:`aiohttp.ClientSession.get`.
+            By default, ``None``.
+        """
+        self.get_kwargs = {
+            "headers": _header_from_template(header_template),
+            "ssl": None if verify_ssl else False,
+            **(aget_kwargs or {}),
+        }
+        self.client_kwargs = client_kwargs or {}
+
+    async def fetch(self, url):
+        """Fetch content from the web
+
+        Parameters
+        ----------
+        url : str
+            URL to fetch content from.
+
+        Returns
+        -------
+        tuple or None
+            Tuple of (content bytes, content type, charset) if the fetch
+            was successful, else ``None``.
+        """
+        async with aiohttp.ClientSession(**self.client_kwargs) as session:
+            try:
+                logger.debug("Fetching content from %r", url)
+                return await self._fetch_content_with_retry(url, session)
+            except ELMRuntimeError:
+                logger.exception("Could not fetch content from %r", url)
+                return None
 
     @async_retry_with_exponential_backoff(
         base_delay=2,
@@ -529,3 +565,12 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
 
 class AsyncFileLoader(AsyncWebFileLoader):
     """Alias for AsyncWebFileLoader (for backward compatibility)"""
+
+
+def _header_from_template(header_template):
+    """Compile header from user or default template"""
+    headers = header_template or DEFAULT_HEADERS
+    headers = dict(headers)
+    if not headers.get("User-Agent"):
+        headers["User-Agent"] = UserAgent().random
+    return headers
