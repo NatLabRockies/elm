@@ -160,9 +160,6 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
     .. end desc
     """
 
-    PAGE_LOAD_TIMEOUT = 60_000
-    """Default page load timeout value in milliseconds"""
-
     def __init__(
         self,
         header_template=None,
@@ -248,19 +245,18 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         """
         super().__init__(file_cache_coroutine=file_cache_coroutine)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
-        self.html_read_coroutine = html_read_coroutine or _read_html_doc
         self.pdf_read_kwargs = pdf_read_kwargs or {}
-        self.html_read_kwargs = html_read_kwargs or {}
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
-        self.pw_launch_kwargs = pw_launch_kwargs or {}
         self.get_kwargs = {
             "headers": self._header_from_template(header_template),
             "ssl": None if verify_ssl else False,
             **(aget_kwargs or {}),
         }
-        self.browser_semaphore = browser_semaphore
-        self.uss = use_scrapling_stealth
-        self.num_pw_html_retries = num_pw_html_retries
+        self.html_loader = AsyncHTMLLoader(
+            pw_launch_kwargs=pw_launch_kwargs,
+            html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
+            browser_semaphore=browser_semaphore, use_scrapling_stealth=use_scrapling_stealth,
+            num_pw_html_retries=num_pw_html_retries)
 
     def _header_from_template(self, header_template):
         """Compile header from user or default template"""
@@ -288,27 +284,103 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         if not doc.empty:
             return doc, raw_content
 
-        logger.debug("PDF read failed; fetching HTML content from %r", url)
-        doc = await self._fetch_html_using_pw_with_retry(url)
+        logger.debug("PDF read failed")
+        doc = await self.html_loader.fetch(url, raw_content, ct, charset)
         if not doc.empty:
             return doc, doc.text
 
-        if "text" in ct:
-            logger.debug("HTML read with playwright failed; fetching HTML "
-                         "content from response with content type %r and "
-                         "charset %r for %r", ct, charset, url)
-            doc = await self._try_load_doc_from_response_text(raw_content,
-                                                              charset)
-            if not doc.empty:
-                return doc, doc.text
-
-        elif self.pdf_ocr_read_coroutine:
+        if self.pdf_ocr_read_coroutine:
             logger.debug("HTML read failed; fetching OCR content from %r", url)
             doc = await self.pdf_ocr_read_coroutine(
                 raw_content, **self.pdf_read_kwargs
             )
 
         return doc, raw_content
+
+    @async_retry_with_exponential_backoff(
+        base_delay=2,
+        exponential_base=1.5,
+        jitter=False,
+        max_retries=3,
+        errors=(
+            aiohttp.ClientConnectionError,
+            aiohttp.client_exceptions.ClientError,
+        ),
+    )
+    async def _fetch_content_with_retry(self, url, session):
+        """Fetch content from URL with several retry attempts"""
+        async with session.get(url, **self.get_kwargs) as response:
+            body = await response.read()
+            ct = response.content_type.casefold()
+            charset = response.charset or 'utf-8'
+            return body, ct, charset
+
+
+class AsyncHTMLLoader:
+    """Loader specifically designed to load HTML documents from the web."""
+
+    PAGE_LOAD_TIMEOUT = 60_000
+    """Default page load timeout value in milliseconds"""
+
+    def __init__(self, pw_launch_kwargs=None, html_read_kwargs=None,
+                 html_read_coroutine=None, browser_semaphore=None,
+                 use_scrapling_stealth=False, num_pw_html_retries=3):
+        """
+
+        Parameters
+        ----------
+        pw_launch_kwargs : dict, optional
+            Keyword-value argument pairs to pass to
+            :meth:`async_playwright.chromium.launch` (only used when
+            reading HTML). By default, ``None``.
+        html_read_kwargs : dict, optional
+            Keyword-value argument pairs to pass to the
+            `html_read_coroutine`. By default, ``None``.
+        html_read_coroutine : callable, optional
+            HTML file read coroutine. Must by an async function. Should
+            accept HTML text as the first argument and kwargs as the
+            rest. Must return a :obj:`elm.web.document.HTMLDocument`.
+            If ``None``, a default function that runs in the main thread
+            is used. By default, ``None``.
+        browser_semaphore : asyncio.Semaphore, optional
+            Semaphore instance that can be used to limit the number of
+            playwright browsers open concurrently. If ``None``, no
+            limits are applied. By default, ``None``.
+        use_scrapling_stealth : bool, default=False
+            Option to use scrapling stealth scripts instead of
+            tf-playwright-stealth. By default, ``False``.
+        num_pw_html_retries : int, default=3
+            Number of attempts to load HTML content. This is useful
+            because the playwright parameters are stochastic, and
+            sometimes a combination of them can fail to load HTML. The
+            default value is likely a good balance between processing
+            attempts and retrieval success. Note that the minimum number
+            of attempts will always be 2, even if the user provides a
+            value smaller than this. By default, ``3``.
+        """
+        self.pw_launch_kwargs = pw_launch_kwargs or {}
+        self.html_read_coroutine = html_read_coroutine or _read_html_doc
+        self.html_read_kwargs = html_read_kwargs or {}
+        self.uss = use_scrapling_stealth
+        self.browser_semaphore = browser_semaphore
+        self.num_pw_html_retries = num_pw_html_retries
+
+    async def fetch(self, url, raw_content, ct, charset):
+        """Load an HTML doc from a URL"""
+        logger.debug("Fetching HTML content from %r", url)
+        doc = await self._fetch_html_using_pw_with_retry(url)
+        if not doc.empty:
+            return doc
+
+        if "text" not in ct:
+            return HTMLDocument(pages=[])
+
+        logger.debug("HTML read with playwright failed; fetching HTML "
+                     "content from response with content type %r and "
+                     "charset %r for %r", ct, charset, url)
+        doc = await self._try_load_doc_from_response_text(raw_content,
+                                                          charset)
+        return doc
 
     async def _fetch_html_using_pw_with_retry(self, url):
         """Fetch HTML content with several retry attempts"""
@@ -334,24 +406,6 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
                                        load_state="domcontentloaded",
                                        **self.pw_launch_kwargs)
         return await self.html_read_coroutine(text, **self.html_read_kwargs)
-
-    @async_retry_with_exponential_backoff(
-        base_delay=2,
-        exponential_base=1.5,
-        jitter=False,
-        max_retries=3,
-        errors=(
-            aiohttp.ClientConnectionError,
-            aiohttp.client_exceptions.ClientError,
-        ),
-    )
-    async def _fetch_content_with_retry(self, url, session):
-        """Fetch content from URL with several retry attempts"""
-        async with session.get(url, **self.get_kwargs) as response:
-            body = await response.read()
-            ct = response.content_type.casefold()
-            charset = response.charset or 'utf-8'
-            return body, ct, charset
 
     async def _try_load_doc_from_response_text(self, raw_content, charset):
         """Try to load document by decoding response text"""
