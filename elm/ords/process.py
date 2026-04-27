@@ -425,7 +425,7 @@ async def process_county_with_logging(
         ordinance document. By default, ``5``.
     file_loader_kwargs : dict, optional
         Dictionary of keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader` with. The
+        :class:`elm.web.file_loader.AsyncWebFileLoader` with. The
         "pw_launch_kwargs" key in these will also be used to initialize
         the :class:`elm.web.google_search.PlaywrightGoogleLinkSearch`
         used for the google URL search. By default, ``None``.
@@ -498,7 +498,7 @@ async def process_county(
         ordinance document. By default, ``5``.
     file_loader_kwargs : dict, optional
         Dictionary of keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader` with. The
+        :class:`elm.web.file_loader.AsyncWebFileLoader` with. The
         "pw_launch_kwargs" key in these will also be used to initialize
         the :class:`elm.web.google_search.PlaywrightGoogleLinkSearch`
         used for the google URL search. By default, ``None``.

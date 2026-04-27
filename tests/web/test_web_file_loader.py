@@ -58,7 +58,7 @@ async def patched_get_html(url, *args, **kwargs):
 
 @pytest.mark.asyncio
 async def test_async_file_loader_basic_pdf(monkeypatch):
-    """Test `AsyncFileLoader` for a basic PDF doc"""
+    """Test `AsyncWebFileLoader` for a basic PDF doc"""
 
     monkeypatch.setattr(
         aiohttp.ClientSession,
@@ -82,7 +82,7 @@ async def test_async_file_loader_basic_pdf(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_async_file_loader_basic_html(monkeypatch):
-    """Test `AsyncFileLoader` for a basic HTML doc"""
+    """Test `AsyncWebFileLoader` for a basic HTML doc"""
 
     monkeypatch.setattr(
         aiohttp.ClientSession,

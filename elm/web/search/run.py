@@ -8,7 +8,7 @@ from collections import namedtuple
 from itertools import zip_longest, chain
 from contextlib import AsyncExitStack
 
-from elm.web.file_loader import AsyncFileLoader
+from elm.web.file_loader import AsyncWebFileLoader
 from elm.web.search.bing import PlaywrightBingLinkSearch
 from elm.web.search.duckduckgo import (APIDuckDuckGoSearch,
                                        PlaywrightDuckDuckGoLinkSearch)
@@ -125,7 +125,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         search failed). By default, ``None``.
     **kwargs
         Keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader`. This input can
+        :class:`elm.web.file_loader.AsyncWebFileLoader`. This input can
         also include and any/all of the following keywords:
 
             - ddg_api_kwargs
@@ -301,7 +301,7 @@ async def load_docs(urls, browser_semaphore=None, **kwargs):
         ``None``, no limits are applied. By default, ``None``.
     kwargs
         Keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader`.
+        :class:`elm.web.file_loader.AsyncWebFileLoader`.
 
     Returns
     -------
@@ -311,10 +311,10 @@ async def load_docs(urls, browser_semaphore=None, **kwargs):
         is empty), it will not be included in the output list.
     """
     logger.trace("Downloading docs for the following URL's:\n%r", urls)
-    logger.trace("kwargs for AsyncFileLoader:\n%s",
+    logger.trace("kwargs for AsyncWebFileLoader:\n%s",
                  pprint.PrettyPrinter().pformat(kwargs))
-    file_loader = AsyncFileLoader(browser_semaphore=browser_semaphore,
-                                  **kwargs)
+    file_loader = AsyncWebFileLoader(browser_semaphore=browser_semaphore,
+                                     **kwargs)
     docs = await file_loader.fetch_all(*urls)
 
     page_lens = {doc.attrs.get("source", "Unknown"): len(doc.pages)

@@ -38,7 +38,7 @@ class BaseDocument(ABC):
            and formats tables.
         3. Track pages and other document metadata.
     Key Relationships:
-        Created by :class:`~elm.web.file_loader.AsyncFileLoader` and
+        Created by :class:`~elm.web.file_loader.AsyncWebFileLoader` and
         used all over ordinance code.
 
     .. end desc
