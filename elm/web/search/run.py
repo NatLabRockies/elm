@@ -173,7 +173,11 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         await on_search_complete_hook(urls)
 
     logger.debug("Downloading documents for URLS: \n\t-%s", "\n\t-".join(urls))
-    docs = await load_docs(urls, browser_semaphore, **kwargs)
+    logger.trace("kwargs for AsyncWebFileLoader:\n%s",
+                 pprint.PrettyPrinter().pformat(kwargs))
+    file_loader = AsyncWebFileLoader(browser_semaphore=browser_semaphore,
+                                     **kwargs)
+    docs = await load_docs(urls, file_loader)
     return docs
 
 
@@ -288,20 +292,15 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     return set()
 
 
-async def load_docs(urls, browser_semaphore=None, **kwargs):
+async def load_docs(urls, file_loader):
     """Load a document for each input URL
 
     Parameters
     ----------
     urls : iterable of str
         Iterable of URL's (as strings) to fetch.
-    browser_semaphore : :class:`asyncio.Semaphore`, optional
-        Semaphore instance that can be used to limit the number of
-        playwright browsers open concurrently for document retrieval. If
-        ``None``, no limits are applied. By default, ``None``.
-    kwargs
-        Keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncWebFileLoader`.
+    file_loader : class:`elm.web.file_loader.AsyncWebFileLoader`
+        File loader instance used to fetch content from URL's.
 
     Returns
     -------
@@ -311,10 +310,6 @@ async def load_docs(urls, browser_semaphore=None, **kwargs):
         is empty), it will not be included in the output list.
     """
     logger.trace("Downloading docs for the following URL's:\n%r", urls)
-    logger.trace("kwargs for AsyncWebFileLoader:\n%s",
-                 pprint.PrettyPrinter().pformat(kwargs))
-    file_loader = AsyncWebFileLoader(browser_semaphore=browser_semaphore,
-                                     **kwargs)
     docs = await file_loader.fetch_all(*urls)
 
     page_lens = {doc.attrs.get("source", "Unknown"): len(doc.pages)
