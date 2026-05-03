@@ -127,6 +127,10 @@ class BaseAsyncFileLoader(ABC):
     async def _cache_doc(self, doc, raw_content):
         """Cache doc if user provided a coroutine"""
         if doc.empty or not raw_content:
+            if self.file_cache_coroutine:
+                logger.debug("Not caching document for source %r because the "
+                             "document is empty or there is no raw content",
+                             doc.attrs.get("source", "Unknown"))
             return doc
 
         if not self.file_cache_coroutine:
