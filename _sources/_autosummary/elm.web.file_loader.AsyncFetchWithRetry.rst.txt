@@ -1,0 +1,24 @@
+elm.web.file\_loader.AsyncFetchWithRetry
+========================================
+
+.. currentmodule:: elm.web.file_loader
+
+.. autoclass:: AsyncFetchWithRetry
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~AsyncFetchWithRetry.fetch
+   
+   
+
+   
+   
+   
