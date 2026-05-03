@@ -129,6 +129,17 @@ def test_markdown_doc_keeps_comments_when_disabled():
     assert doc.text == page
 
 
+@pytest.mark.parametrize("remove_comments", [True, False])
+def test_markdown_doc_empty_ignores_comments(remove_comments):
+    """Test empty check ignores markdown comments for all settings"""
+
+    page = "<!-- comment text that would otherwise count as content -->"
+
+    doc = MDDocument([page], remove_comments=remove_comments)
+
+    assert doc.empty
+
+
 def test_markdown_doc_with_splitter():
     """Test markdown raw pages with a text splitter"""
 

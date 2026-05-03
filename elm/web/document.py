@@ -388,6 +388,13 @@ class MDDocument(BaseDocument):
             return self.pages
         return self.text_splitter.split_text("\n\n".join(self.pages))
 
+    @property
+    def empty(self):
+        """bool: ``True`` if the document contains no pages."""
+        # Always strip comments when checking if doc is empty
+        return not any(_non_empty_pages((
+            self.MARKDOWN_COMMENT_RE.sub("", p) for p in self.pages)))
+
 
 def _non_empty_pages(pages):
     """Return all pages with more than 10 chars"""
