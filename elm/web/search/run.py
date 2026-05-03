@@ -292,13 +292,13 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     return set()
 
 
-async def load_docs(urls, file_loader):
+async def load_docs(sources, file_loader):
     """Load a document for each input URL
 
     Parameters
     ----------
-    urls : iterable of str
-        Iterable of URL's (as strings) to fetch.
+    sources : iterable of str
+        Iterable of URL's or filepaths (as strings) to fetch.
     file_loader : class:`elm.web.file_loader.AsyncWebFileLoader`
         File loader instance used to fetch content from URL's.
 
@@ -309,9 +309,9 @@ async def load_docs(urls, file_loader):
         the URL's. If a URL could not be fetched (i.e. document instance
         is empty), it will not be included in the output list.
     """
-    logger.trace("Downloading docs for the following sources:\n%r", urls)
-    docs = await file_loader.fetch_all(*urls)
-    logger.debug("Loaded %d docs from %d urls", len(docs), len(urls))
+    logger.trace("Downloading docs for the following sources:\n%r", sources)
+    docs = await file_loader.fetch_all(*sources)
+    logger.debug("Loaded %d docs from %d sources", len(docs), len(sources))
     docs = [doc for doc in docs if not doc.empty]
     logger.debug("%d docs are not empty", len(docs))
 
