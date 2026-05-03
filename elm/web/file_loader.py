@@ -51,39 +51,14 @@ async def _read_html_file(html_fp, **kwargs):
 class BaseAsyncFileLoader(ABC):
     """Base class for async file loading"""
 
-    def __init__(
-        self,
-        pdf_read_coroutine,
-        html_read_coroutine,
-        pdf_read_kwargs=None,
-        html_read_kwargs=None,
-        pdf_ocr_read_coroutine=None,
-        file_cache_coroutine=None,
-        **__,  # consume any extra kwargs
-    ):
+    def __init__(self,
+                 file_cache_coroutine=None,
+                 **__,  # consume any extra kwargs
+                 ):
         """
 
         Parameters
         ----------
-        pdf_read_coroutine : callable
-            PDF file read coroutine. Must by an async function.
-            Must return a :obj:`elm.web.document.PDFDocument`.
-        html_read_coroutine : callable, optional
-            HTML file read coroutine. Must by an async function.
-            Must return a :obj:`elm.web.document.HTMLDocument`.
-        pdf_read_kwargs : dict, optional
-            Keyword-value argument pairs to pass to the
-            `pdf_read_coroutine`. By default, ``None``.
-        html_read_kwargs : dict, optional
-            Keyword-value argument pairs to pass to the
-            `html_read_coroutine`. By default, ``None``.
-        pdf_ocr_read_coroutine : callable, optional
-            PDF OCR file read coroutine. Must by an async function.
-            Should accept PDF bytes as the first argument and kwargs as
-            the rest. Must return a :obj:`elm.web.document.PDFDocument`.
-            If ``None``, PDF OCR parsing is not attempted, and any
-            scanned PDF URL's will return a blank document.
-            By default, ``None``.
         file_cache_coroutine : callable, optional
             File caching coroutine. Can be used to cache files
             downloaded by this class. Must accept an
@@ -92,11 +67,6 @@ class BaseAsyncFileLoader(ABC):
             argument. If this method is not provided, no document
             caching is performed. By default, ``None``.
         """
-        self.pdf_read_coroutine = pdf_read_coroutine
-        self.html_read_coroutine = html_read_coroutine
-        self.pdf_read_kwargs = pdf_read_kwargs or {}
-        self.html_read_kwargs = html_read_kwargs or {}
-        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.file_cache_coroutine = file_cache_coroutine
 
     async def fetch_all(self, *sources):
@@ -157,6 +127,10 @@ class BaseAsyncFileLoader(ABC):
     async def _cache_doc(self, doc, raw_content):
         """Cache doc if user provided a coroutine"""
         if doc.empty or not raw_content:
+            if self.file_cache_coroutine:
+                logger.debug("Not caching document for source %r because the "
+                             "document is empty or there is no raw content",
+                             doc.attrs.get("source", "Unknown"))
             return doc
 
         if not self.file_cache_coroutine:
@@ -189,9 +163,6 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
 
     .. end desc
     """
-
-    PAGE_LOAD_TIMEOUT = 60_000
-    """Default page load timeout value in milliseconds"""
 
     def __init__(
         self,
@@ -276,71 +247,213 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
         """
-        super().__init__(
-            pdf_read_coroutine=pdf_read_coroutine or _read_pdf_doc,
-            html_read_coroutine=html_read_coroutine or _read_html_doc,
-            pdf_read_kwargs=pdf_read_kwargs,
-            html_read_kwargs=html_read_kwargs,
-            pdf_ocr_read_coroutine=pdf_ocr_read_coroutine,
-            file_cache_coroutine=file_cache_coroutine
-        )
-        self.pw_launch_kwargs = pw_launch_kwargs or {}
-        self.get_kwargs = {
-            "headers": self._header_from_template(header_template),
-            "ssl": None if verify_ssl else False,
-            **(aget_kwargs or {}),
-        }
-        self.browser_semaphore = browser_semaphore
-        self.uss = use_scrapling_stealth
-        self.num_pw_html_retries = num_pw_html_retries
-
-    def _header_from_template(self, header_template):
-        """Compile header from user or default template"""
-        headers = header_template or DEFAULT_HEADERS
-        headers = dict(headers)
-        if not headers.get("User-Agent"):
-            headers["User-Agent"] = UserAgent().random
-        return headers
+        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
+        self.pdf_read_kwargs = pdf_read_kwargs or {}
+        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
+        self.content_fetcher = AsyncFetchWithRetry(
+            header_template=header_template, verify_ssl=verify_ssl,
+            aget_kwargs=aget_kwargs)
+        self.html_loader = AsyncHTMLLoader(
+            pw_launch_kwargs=pw_launch_kwargs,
+            html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
+            browser_semaphore=browser_semaphore, use_scrapling_stealth=use_scrapling_stealth,
+            num_pw_html_retries=num_pw_html_retries)
 
     async def _fetch_doc(self, url):
         """Fetch a doc by trying pdf read, then HTML read, then PDF OCR"""
 
-        async with aiohttp.ClientSession() as session:
-            try:
-                logger.debug("Fetching content from %r", url)
-                out = await self._fetch_content_with_retry(url, session)
-            except ELMRuntimeError:
-                logger.exception("Could not fetch content from %r", url)
-                return PDFDocument(pages=[]), None
+        out = await self.content_fetcher.fetch(url)
+        if out is None:
+            return PDFDocument(pages=[]), None
 
-        raw_content, ct, charset = out
+        raw_content, ct, charset, __ = out
         logger.debug("Got content from %r", url)
         doc = await self.pdf_read_coroutine(raw_content,
                                             **self.pdf_read_kwargs)
         if not doc.empty:
             return doc, raw_content
 
-        logger.debug("PDF read failed; fetching HTML content from %r", url)
-        doc = await self._fetch_html_using_pw_with_retry(url)
+        logger.debug("PDF read failed")
+        doc = await self.html_loader.fetch(url, raw_content, ct, charset)
         if not doc.empty:
             return doc, doc.text
 
-        if "text" in ct:
-            logger.debug("HTML read with playwright failed; fetching HTML "
-                         "content from response with content type %r and "
-                         "charset %r for %r", ct, charset, url)
-            doc = await self._try_load_doc_from_response_text(raw_content,
-                                                              charset)
-            if not doc.empty:
-                return doc, doc.text
-
-        elif self.pdf_ocr_read_coroutine:
+        if self.pdf_ocr_read_coroutine:
             logger.debug("HTML read failed; fetching OCR content from %r", url)
             doc = await self.pdf_ocr_read_coroutine(
                 raw_content, **self.pdf_read_kwargs
             )
 
         return doc, raw_content
+
+
+class AsyncFetchWithRetry:
+    """Loader for fetching content from the web with retry attempts"""
+
+    def __init__(self, header_template=None, verify_ssl=True,
+                 aget_kwargs=None, client_kwargs=None):
+        """
+
+        Parameters
+        ----------
+        header_template : dict, optional
+            Optional GET header template. If not specified, uses
+            :obj:`~elm.web.utilities.DEFAULT_HEADERS`.
+            By default, ``None``.
+        verify_ssl : bool, optional
+            Option to use aiohttp's default SSL check. If ``False``,
+            SSL certificate validation is skipped. By default, ``True``.
+        aget_kwargs : dict, optional
+            Other kwargs to pass to :meth:`aiohttp.ClientSession.get`.
+            By default, ``None``.
+        """
+        self.get_kwargs = {
+            "headers": _header_from_template(header_template),
+            "ssl": None if verify_ssl else False,
+            **(aget_kwargs or {}),
+        }
+        self.client_kwargs = client_kwargs or {}
+
+    async def fetch(self, url):
+        """Fetch content from the web
+
+        Parameters
+        ----------
+        url : str
+            URL to fetch content from.
+
+        Returns
+        -------
+        tuple or None
+            Tuple of (content bytes, content type, charset) if the fetch
+            was successful, else ``None``.
+        """
+        async with aiohttp.ClientSession(**self.client_kwargs) as session:
+            try:
+                logger.debug("Fetching content from %r", url)
+                return await self._fetch_content_with_retry(url, session)
+            except ELMRuntimeError:
+                logger.exception("Could not fetch content from %r", url)
+                return None
+
+    @async_retry_with_exponential_backoff(
+        base_delay=2,
+        exponential_base=1.5,
+        jitter=False,
+        max_retries=3,
+        errors=(
+            aiohttp.ClientConnectionError,
+            aiohttp.client_exceptions.ClientError,
+        ),
+    )
+    async def _fetch_content_with_retry(self, url, session):
+        """Fetch content from URL with several retry attempts"""
+        async with session.get(url, **self.get_kwargs) as response:
+            body = await response.read()
+            headers = response.headers
+            ct = response.content_type.casefold()
+            charset = response.charset or 'utf-8'
+            return body, ct, charset, headers
+
+
+class AsyncHTMLLoader:
+    """Loader specifically designed to load HTML documents from the web."""
+
+    PAGE_LOAD_TIMEOUT = 60_000
+    """Default page load timeout value in milliseconds"""
+
+    def __init__(self, pw_launch_kwargs=None, html_read_kwargs=None,
+                 html_read_coroutine=None, browser_semaphore=None,
+                 use_scrapling_stealth=False, num_pw_html_retries=3):
+        """
+
+        Parameters
+        ----------
+        pw_launch_kwargs : dict, optional
+            Keyword-value argument pairs to pass to
+            :meth:`async_playwright.chromium.launch` (only used when
+            reading HTML). By default, ``None``.
+        html_read_kwargs : dict, optional
+            Keyword-value argument pairs to pass to the
+            `html_read_coroutine`. By default, ``None``.
+        html_read_coroutine : callable, optional
+            HTML file read coroutine. Must by an async function. Should
+            accept HTML text as the first argument and kwargs as the
+            rest. Must return a :obj:`elm.web.document.HTMLDocument`.
+            If ``None``, a default function that runs in the main thread
+            is used. By default, ``None``.
+        browser_semaphore : asyncio.Semaphore, optional
+            Semaphore instance that can be used to limit the number of
+            playwright browsers open concurrently. If ``None``, no
+            limits are applied. By default, ``None``.
+        use_scrapling_stealth : bool, default=False
+            Option to use scrapling stealth scripts instead of
+            tf-playwright-stealth. By default, ``False``.
+        num_pw_html_retries : int, default=3
+            Number of attempts to load HTML content. This is useful
+            because the playwright parameters are stochastic, and
+            sometimes a combination of them can fail to load HTML. The
+            default value is likely a good balance between processing
+            attempts and retrieval success. Note that the minimum number
+            of attempts will always be 2, even if the user provides a
+            value smaller than this. By default, ``3``.
+        """
+        self.pw_launch_kwargs = pw_launch_kwargs or {}
+        self.html_read_coroutine = html_read_coroutine or _read_html_doc
+        self.html_read_kwargs = html_read_kwargs or {}
+        self.uss = use_scrapling_stealth
+        self.browser_semaphore = browser_semaphore
+        self.num_pw_html_retries = num_pw_html_retries
+
+    async def fetch(self, url, raw_content=None, ct=None, charset=None):
+        """Load an HTML doc from a URL
+
+        Parameters
+        ----------
+        url : str
+             URL to load HTML content from.
+        raw_content : bytes, optional
+            Raw content bytes from the URL response. This is used in
+            case the playwright HTML load fails and we need to try
+            loading HTML from the response content. If not provided,
+            this step is skipped. By default, ``None``.
+        ct : str, optional
+            Content type from the URL response. This is used to help
+            determine if the response content can be processed as text
+            in the case where the playwright HTML load fails. If not
+            provided, this step is skipped. By default, ``None``.
+        charset : str, optional
+            Charset from the URL response. This is used to decode the
+            response content in the case where the playwright HTML load
+            fails and we need to try loading HTML from the response
+            content. If not provided, this step is skipped.
+            By default, ``None``.
+
+        Returns
+        -------
+        HTMLDocument
+            Document instance containing text, if the load was
+            successful, else an empty document.
+        """
+        logger.debug("Fetching HTML content from %r", url)
+        doc = await self._fetch_html_using_pw_with_retry(url)
+        if not doc.empty:
+            return doc
+
+        can_process_response = (raw_content is not None
+                                and ct is not None
+                                and charset is not None
+                                and "text" in ct)
+        if not can_process_response:
+            return HTMLDocument(pages=[])
+
+        logger.debug("HTML read with playwright failed; fetching HTML "
+                     "content from response with content type %r and "
+                     "charset %r for %r", ct, charset, url)
+        doc = await self._try_load_doc_from_response_text(raw_content,
+                                                          charset)
+        return doc
 
     async def _fetch_html_using_pw_with_retry(self, url):
         """Fetch HTML content with several retry attempts"""
@@ -366,24 +479,6 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
                                        load_state="domcontentloaded",
                                        **self.pw_launch_kwargs)
         return await self.html_read_coroutine(text, **self.html_read_kwargs)
-
-    @async_retry_with_exponential_backoff(
-        base_delay=2,
-        exponential_base=1.5,
-        jitter=False,
-        max_retries=3,
-        errors=(
-            aiohttp.ClientConnectionError,
-            aiohttp.client_exceptions.ClientError,
-        ),
-    )
-    async def _fetch_content_with_retry(self, url, session):
-        """Fetch content from URL with several retry attempts"""
-        async with session.get(url, **self.get_kwargs) as response:
-            body = await response.read()
-            ct = response.content_type.casefold()
-            charset = response.charset or 'utf-8'
-            return body, ct, charset
 
     async def _try_load_doc_from_response_text(self, raw_content, charset):
         """Try to load document by decoding response text"""
@@ -453,14 +548,12 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
             Additional document attributes to add to each loaded
             document. By default, ``None``.
         """
-        super().__init__(
-            pdf_read_coroutine=pdf_read_coroutine or _read_pdf_file,
-            html_read_coroutine=html_read_coroutine or _read_html_file,
-            pdf_read_kwargs=pdf_read_kwargs,
-            html_read_kwargs=html_read_kwargs,
-            pdf_ocr_read_coroutine=pdf_ocr_read_coroutine,
-            file_cache_coroutine=file_cache_coroutine
-        )
+        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_file
+        self.html_read_coroutine = html_read_coroutine or _read_html_file
+        self.pdf_read_kwargs = pdf_read_kwargs or {}
+        self.html_read_kwargs = html_read_kwargs or {}
+        self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.doc_attrs = doc_attrs or {}
 
     async def _fetch_doc(self, source):
@@ -509,3 +602,12 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
 
 class AsyncFileLoader(AsyncWebFileLoader):
     """Alias for AsyncWebFileLoader (for backward compatibility)"""
+
+
+def _header_from_template(header_template):
+    """Compile header from user or default template"""
+    headers = header_template or DEFAULT_HEADERS
+    headers = dict(headers)
+    if not headers.get("User-Agent"):
+        headers["User-Agent"] = UserAgent().random
+    return headers

@@ -19,7 +19,7 @@ version = version.split('=')[-1].strip().strip('"').strip("'")
 with open("requirements.txt") as f:
     install_requires = f.readlines()
 
-
+examples_require = ["nlr-rex>=0.5.0"]
 test_requires = ["pytest>=5.2", "pytest-mock", "pytest-asyncio", "pytest-cov",
                  "flaky>=3.8.1"]
 description = "Energy Language Model"
@@ -49,7 +49,7 @@ setup(
     ],
     install_requires=install_requires,
     extras_require={
-        "dev": install_requires + test_requires,
+        "dev": install_requires + examples_require + test_requires,
     },
     entry_points={"console_scripts": ["elm=elm.cli:main"]}
 )

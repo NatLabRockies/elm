@@ -363,7 +363,7 @@ for multiprocessing tasks.
 
 --------------------------------------------------------------------------------------------------------------------------------------------------
 
-**4.2.2** :class:`~elm.web.file_loader.AsyncFileLoader`
+**4.2.2** :class:`~elm.web.file_loader.AsyncWebFileLoader`
 -------------------------------------------------------
 
 .. literalinclude:: ../../../elm/web/file_loader.py
@@ -376,10 +376,10 @@ for multiprocessing tasks.
 .. code-block:: python
 
     import asyncio
-    from elm.web.file_loader import AsyncFileLoader
+    from elm.web.file_loader import AsyncWebFileLoader
 
     async def main():
-        loader = AsyncFileLoader()
+        loader = AsyncWebFileLoader()
         doc = await loader.fetch(
             url="https://en.wikipedia.org/wiki/National_Renewable_Energy_Laboratory"
         )
@@ -781,7 +781,7 @@ We give a rough breakdown of the following call:
 1. :func:`~elm.web.search.run.web_search_links_as_docs()` is invoked with 3 queries and ``num_urls=4``.
 2. Each of the three queries are processed asynchronously, creating a :class:`~elm.web.google_search.PlaywrightGoogleLinkSearch` instance and retrieving the top URL results.
 3. Internal code reduces the URL lists returned from each of the queries into the top 4 URLs.
-4. :class:`~elm.web.file_loader.AsyncFileLoader` asynchronously downloads the content for reach of the top 4 URLs, determines the document type the content should be stored
+4. :class:`~elm.web.file_loader.AsyncWebFileLoader` asynchronously downloads the content for reach of the top 4 URLs, determines the document type the content should be stored
    in (:class:`~elm.web.document.HTMLDocument` or :class:`~elm.web.document.PDFDocument`), creates and populates the document instances, and returns the document to the caller.
 
 **Sequence Diagram:**
@@ -791,7 +791,7 @@ We give a rough breakdown of the following call:
     sequenceDiagram
         participant A as web_search_links_as_docs()
         participant B as PlaywrightGoogleLinkSearch
-        participant D as AsyncFileLoader
+        participant D as AsyncWebFileLoader
         participant E as HTMLDocument
         participant F as PDFDocument
 
