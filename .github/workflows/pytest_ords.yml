@@ -23,6 +23,7 @@ jobs:
         channels: conda-forge,defaults
         python-version: ${{ matrix.python-version }}
         miniconda-version: "latest"
+        packages: pip
     - name: Install Poppler Reqs
       run:   |
          if [ "$RUNNER_OS" == "Linux" ]; then
