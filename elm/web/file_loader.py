@@ -263,7 +263,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         if out is None:
             return PDFDocument(pages=[]), None
 
-        raw_content, ct, charset = out
+        raw_content, ct, charset, __ = out
         logger.debug("Got content from %r", url)
         doc = await self.pdf_read_coroutine(raw_content,
                                             **self.pdf_read_kwargs)
@@ -347,9 +347,10 @@ class AsyncFetchWithRetry:
         """Fetch content from URL with several retry attempts"""
         async with session.get(url, **self.get_kwargs) as response:
             body = await response.read()
+            headers = response.headers
             ct = response.content_type.casefold()
             charset = response.charset or 'utf-8'
-            return body, ct, charset
+            return body, ct, charset, headers
 
 
 class AsyncHTMLLoader:
