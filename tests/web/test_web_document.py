@@ -8,7 +8,7 @@ import pdftotext
 import pandas as pd
 
 from elm import TEST_DATA_DIR
-from elm.web.document import PDFDocument, HTMLDocument
+from elm.web.document import PDFDocument, HTMLDocument, MDDocument
 
 
 class TestSplitter:
@@ -19,7 +19,9 @@ class TestSplitter:
         return text.split("\n")
 
 
-@pytest.mark.parametrize("doc_type", [PDFDocument, HTMLDocument])
+@pytest.mark.parametrize(
+    "doc_type", [PDFDocument, HTMLDocument, MDDocument]
+)
 def test_basic_document(doc_type):
     """Test basic properties of the `Document` class"""
 
@@ -100,6 +102,43 @@ def test_html_doc_with_splitter():
     assert len(doc.raw_pages) == og_text.count("\n") + 1
 
 
+def test_markdown_doc_removes_comments():
+    """Test markdown comment stripping during cleaning"""
+
+    pages = [
+        "# Heading\nVisible text\n<!-- hidden comment -->",
+        "More text\n<!-- another\ncomment -->\nFinal line",
+    ]
+
+    doc = MDDocument(pages)
+
+    assert "hidden comment" not in doc.text
+    assert "another\ncomment" not in doc.text
+    assert "Visible text" in doc.text
+    assert "Final line" in doc.text
+    assert doc.raw_pages == pages
+
+
+def test_markdown_doc_keeps_comments_when_disabled():
+    """Test markdown comments remain when comment removal is disabled"""
+
+    page = "Visible text\n<!-- hidden comment -->\nFinal line"
+
+    doc = MDDocument([page], remove_comments=False)
+
+    assert doc.text == page
+
+
+def test_markdown_doc_with_splitter():
+    """Test markdown raw pages with a text splitter"""
+
+    pages = ["# Heading\n\nBody line", "Tail section"]
+
+    doc = MDDocument(pages, text_splitter=TestSplitter())
+
+    assert doc.raw_pages == ["# Heading", "", "Body line", "", "Tail section"]
+
+
 def test_doc_repr():
     """Test document repr method"""
 
@@ -143,6 +182,7 @@ def test_doc_is_empty(pages):
 
     assert PDFDocument(pages).empty
     assert HTMLDocument(pages).empty
+    assert MDDocument(pages).empty
 
 
 def test_html_string_is_empty_doc():
