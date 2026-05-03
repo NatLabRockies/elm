@@ -402,14 +402,46 @@ class AsyncHTMLLoader:
         self.browser_semaphore = browser_semaphore
         self.num_pw_html_retries = num_pw_html_retries
 
-    async def fetch(self, url, raw_content, ct, charset):
-        """Load an HTML doc from a URL"""
+    async def fetch(self, url, raw_content=None, ct=None, charset=None):
+        """Load an HTML doc from a URL
+
+        Parameters
+        ----------
+        url : str
+             URL to load HTML content from.
+        raw_content : bytes, optional
+            Raw content bytes from the URL response. This is used in
+            case the playwright HTML load fails and we need to try
+            loading HTML from the response content. If not provided,
+            this step is skipped. By default, ``None``.
+        ct : str, optional
+            Content type from the URL response. This is used to help
+            determine if the response content can be processed as text
+            in the case where the playwright HTML load fails. If not
+            provided, this step is skipped. By default, ``None``.
+        charset : str, optional
+            Charset from the URL response. This is used to decode the
+            response content in the case where the playwright HTML load
+            fails and we need to try loading HTML from the response
+            content. If not provided, this step is skipped.
+            By default, ``None``.
+
+        Returns
+        -------
+        HTMLDocument
+            Document instance containing text, if the load was
+            successful, else an empty document.
+        """
         logger.debug("Fetching HTML content from %r", url)
         doc = await self._fetch_html_using_pw_with_retry(url)
         if not doc.empty:
             return doc
 
-        if "text" not in ct:
+        can_process_response = (raw_content is not None
+                                and ct is not None
+                                and charset is not None
+                                and "text" in ct)
+        if not can_process_response:
             return HTMLDocument(pages=[])
 
         logger.debug("HTML read with playwright failed; fetching HTML "
