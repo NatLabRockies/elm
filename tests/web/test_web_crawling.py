@@ -7,6 +7,7 @@ import pytest
 
 from elm.ords.validation.content import possibly_mentions_wind
 from elm.web.website_crawl import ELMLinkScorer, ELMWebsiteCrawler
+from elm.web.file_loader import AsyncWebFileLoader
 
 
 @pytest.mark.asyncio
@@ -24,7 +25,9 @@ async def test_basic_website_crawl():
     async def found_enough_test_docs(out_docs):
         return len(out_docs) >= 1
 
+    afl = AsyncWebFileLoader(verify_ssl=False)
     crawler = ELMWebsiteCrawler(validator=validation,
+                                async_file_loader=afl,
                                 url_scorer=ELMLinkScorer(kw).score)
 
     out_docs = await crawler.run("https://www.elpasoco.com",

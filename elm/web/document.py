@@ -38,7 +38,7 @@ class BaseDocument(ABC):
            and formats tables.
         3. Track pages and other document metadata.
     Key Relationships:
-        Created by :class:`~elm.web.file_loader.AsyncFileLoader` and
+        Created by :class:`~elm.web.file_loader.AsyncWebFileLoader` and
         used all over ordinance code.
 
     .. end desc
@@ -337,6 +337,63 @@ class HTMLDocument(BaseDocument):
         if self.text_splitter is None:
             return self.pages
         return self.text_splitter.split_text("\n\n".join(self.pages))
+
+
+class MDDocument(BaseDocument):
+    """ELM Markdown document"""
+
+    MARKDOWN_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+    """Regex pattern to remove HTML comments from markdown text"""
+    WRITE_KWARGS = {"mode": "w", "encoding": "utf-8"}
+    FILE_EXTENSION = "md"
+
+    def __init__(self, pages, attrs=None, remove_comments=True,
+                 text_splitter=None):
+        """
+
+        Parameters
+        ----------
+        pages : iterable
+            Iterable of strings, where each string is a page of a
+            document.
+        attrs : dict, optional
+            Optional dict containing metadata for the document.
+            By default, ``None``.
+        remove_comments : bool, optional
+            Option remove HTML comments in Markdown text during
+            cleaning. By default, ``True``.
+        text_splitter : obj, optional
+            Instance of an object that implements a `split_text` method.
+            The method should take text as input (str) and return a list
+            of text chunks. The raw pages will be passed through this
+            splitter to create raw pages for this document. Langchain's
+            text splitters should work for this input.
+            By default, ``None``, which means the original pages input
+            becomes the raw pages attribute.
+        """
+        super().__init__(pages, attrs=attrs)
+        self.remove_comments = remove_comments
+        self.text_splitter = text_splitter
+
+    def _cleaned_text(self):
+        """Compute cleaned text from document"""
+        text = combine_pages(self.pages)
+        if self.remove_comments:
+            text = self.MARKDOWN_COMMENT_RE.sub("", text)
+        return text
+
+    def _raw_pages(self):
+        """Get raw pages from document"""
+        if self.text_splitter is None:
+            return self.pages
+        return self.text_splitter.split_text("\n\n".join(self.pages))
+
+    @property
+    def empty(self):
+        """bool: ``True`` if the document contains no pages."""
+        # Always strip comments when checking if doc is empty
+        return not any(_non_empty_pages((
+            self.MARKDOWN_COMMENT_RE.sub("", p) for p in self.pages)))
 
 
 def _non_empty_pages(pages):

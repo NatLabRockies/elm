@@ -22,7 +22,7 @@ from elm.ords.services.threaded import TempFileCache
 from elm.ords.services.provider import RunningAsyncServices
 from elm.ords.utilities.queued_logging import LocationFileLog, LogListener
 from elm.web.search.yahoo import PlaywrightYahooLinkSearch
-from elm.web.file_loader import AsyncFileLoader
+from elm.web.file_loader import AsyncWebFileLoader
 from elm.web.document import HTMLDocument
 
 
@@ -34,6 +34,7 @@ class MockResponse:
         self.read_return = read_return
         self.content_type = "application/pdf"
         self.charset = "utf-8"
+        self.headers = {}
 
     async def read(self):
         return self.read_return
@@ -202,7 +203,7 @@ async def test_search_with_logging(tmp_path):
 
 @pytest.mark.asyncio
 async def test_async_file_loader_with_temp_cache(monkeypatch):
-    """Test `AsyncFileLoader` with a `TempFileCache` service"""
+    """Test `AsyncWebFileLoader` with a `TempFileCache` service"""
 
     monkeypatch.setattr(
         aiohttp.ClientSession,
@@ -223,7 +224,7 @@ async def test_async_file_loader_with_temp_cache(monkeypatch):
     truth = HTMLDocument([content])
 
     async with RunningAsyncServices([TempFileCache()]):
-        loader = AsyncFileLoader(file_cache_coroutine=TempFileCache.call)
+        loader = AsyncWebFileLoader(file_cache_coroutine=TempFileCache.call)
         doc = await loader.fetch("Whatcom")
         assert doc.text == truth.text
         assert doc.attrs["source"] == "Whatcom"

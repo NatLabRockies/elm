@@ -16,7 +16,6 @@ from crawl4ai.deep_crawling import BestFirstCrawlingStrategy
 from crawl4ai.deep_crawling.filters import (FilterChain, URLPatternFilter,
                                             ContentTypeFilter, URLFilter)
 
-from elm.web.file_loader import AsyncFileLoader
 from elm.web.document import HTMLDocument
 
 
@@ -375,7 +374,7 @@ class ELMWebsiteCrawlingStrategy(BestFirstCrawlingStrategy):
 class ELMWebsiteCrawler:
     """Crawl a website for documents of interest"""
 
-    def __init__(self, validator, file_loader_kwargs=None,
+    def __init__(self, validator, async_file_loader,
                  browser_config_kwargs=None, crawl_strategy_kwargs=None,
                  crawler_config_kwargs=None, cte_kwargs=None,
                  extra_url_filters=None, include_external=False,
@@ -390,10 +389,9 @@ class ELMWebsiteCrawler:
             indicating whether the text passes the validation check.
             This is used to determine whether or not to keep (i.e.
             return) the document.
-        file_loader_kwargs : dict, optional
-            Additional keyword-value argument pairs to pass to the
-            :class:`~elm.web.file_loader.AsyncFileLoader` class.
-            By default, ``None``.
+        async_file_loader : object
+            :class:`~elm.web.file_loader.BaseAsyncFileLoader` instance
+            used to fetch the content of the crawled pages.
         browser_config_kwargs : dict, optional
             Additional keyword-value argument pairs to pass to the
             :class:`crawl4ai.async_configs.BrowserConfig` class.
@@ -440,10 +438,7 @@ class ELMWebsiteCrawler:
         """
         self.validator = validator
         self.page_limit = page_limit or 2 * max_pages
-
-        flk = {"verify_ssl": False}
-        flk.update(file_loader_kwargs or {})
-        self.afl = AsyncFileLoader(**flk)
+        self.afl = async_file_loader
 
         bck = {"headless": True, "verbose": False}
         bck.update(browser_config_kwargs or {})

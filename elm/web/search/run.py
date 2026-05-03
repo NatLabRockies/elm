@@ -8,7 +8,7 @@ from collections import namedtuple
 from itertools import zip_longest, chain
 from contextlib import AsyncExitStack
 
-from elm.web.file_loader import AsyncFileLoader
+from elm.web.file_loader import AsyncWebFileLoader
 from elm.web.search.bing import PlaywrightBingLinkSearch
 from elm.web.search.duckduckgo import (APIDuckDuckGoSearch,
                                        PlaywrightDuckDuckGoLinkSearch)
@@ -125,7 +125,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         search failed). By default, ``None``.
     **kwargs
         Keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader`. This input can
+        :class:`elm.web.file_loader.AsyncWebFileLoader`. This input can
         also include and any/all of the following keywords:
 
             - ddg_api_kwargs
@@ -145,7 +145,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         keyword-argument pairs that you can use to initialize the search
         engines in the `search_engines` input. If ``pw_launch_kwargs``
         is detected, it will be added to the kwargs for all of the
-        PLaywright-based search engines so that you do not have to
+        Playwright-based search engines so that you do not have to
         repeatedly specify the launch parameters. For example, you may
         specify ``pw_launch_kwargs={"headless": False}`` to
         have all Playwright-based searches show the browser and _also_
@@ -173,7 +173,11 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
         await on_search_complete_hook(urls)
 
     logger.debug("Downloading documents for URLS: \n\t-%s", "\n\t-".join(urls))
-    docs = await load_docs(urls, browser_semaphore, **kwargs)
+    logger.trace("kwargs for AsyncWebFileLoader:\n%s",
+                 pprint.PrettyPrinter().pformat(kwargs))
+    file_loader = AsyncWebFileLoader(browser_semaphore=browser_semaphore,
+                                     **kwargs)
+    docs = await load_docs(urls, file_loader)
     return docs
 
 
@@ -288,20 +292,15 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     return set()
 
 
-async def load_docs(urls, browser_semaphore=None, **kwargs):
+async def load_docs(sources, file_loader):
     """Load a document for each input URL
 
     Parameters
     ----------
-    urls : iterable of str
-        Iterable of URL's (as strings) to fetch.
-    browser_semaphore : :class:`asyncio.Semaphore`, optional
-        Semaphore instance that can be used to limit the number of
-        playwright browsers open concurrently for document retrieval. If
-        ``None``, no limits are applied. By default, ``None``.
-    kwargs
-        Keyword-argument pairs to initialize
-        :class:`elm.web.file_loader.AsyncFileLoader`.
+    sources : iterable of str
+        Iterable of URL's or filepaths (as strings) to fetch.
+    file_loader : class:`elm.web.file_loader.AsyncWebFileLoader`
+        File loader instance used to fetch content from URL's.
 
     Returns
     -------
@@ -310,18 +309,20 @@ async def load_docs(urls, browser_semaphore=None, **kwargs):
         the URL's. If a URL could not be fetched (i.e. document instance
         is empty), it will not be included in the output list.
     """
-    logger.trace("Downloading docs for the following URL's:\n%r", urls)
-    logger.trace("kwargs for AsyncFileLoader:\n%s",
-                 pprint.PrettyPrinter().pformat(kwargs))
-    file_loader = AsyncFileLoader(browser_semaphore=browser_semaphore,
-                                  **kwargs)
-    docs = await file_loader.fetch_all(*urls)
+    logger.trace("Downloading docs for the following sources:\n%r", sources)
+    docs = await file_loader.fetch_all(*sources)
+    logger.debug("Loaded %d docs from %d sources", len(docs), len(sources))
+    docs = [doc for doc in docs if not doc.empty]
+    logger.debug("%d docs are not empty", len(docs))
 
-    page_lens = {doc.attrs.get("source", "Unknown"): len(doc.pages)
-                 for doc in docs}
+    page_lens = {}
+    for doc in docs:
+        source = doc.attrs.get("source", "Unknown")
+        page_lens.setdefault(source, []).append(len(doc.pages))
+    page_lens = {k: v if len(v) > 1 else v[0] for k, v in page_lens.items()}
     logger.debug("Loaded the following number of pages for docs:\n%s",
                  pprint.PrettyPrinter().pformat(page_lens))
-    return [doc for doc in docs if not doc.empty]
+    return docs
 
 
 async def _single_se_search(se_name, queries, num_urls, ignore_url_parts,
