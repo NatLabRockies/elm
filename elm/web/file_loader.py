@@ -249,7 +249,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.content_fetcher = AsyncFetchWithRetry(
             header_template=header_template, verify_ssl=verify_ssl,
-            aget_kwargs=None)
+            aget_kwargs=aget_kwargs)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
             html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
