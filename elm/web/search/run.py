@@ -309,14 +309,20 @@ async def load_docs(urls, file_loader):
         the URL's. If a URL could not be fetched (i.e. document instance
         is empty), it will not be included in the output list.
     """
-    logger.trace("Downloading docs for the following URL's:\n%r", urls)
+    logger.trace("Downloading docs for the following sources:\n%r", urls)
     docs = await file_loader.fetch_all(*urls)
+    logger.debug("Loaded %d docs from %d urls", len(docs), len(urls))
+    docs = [doc for doc in docs if not doc.empty]
+    logger.debug("%d docs are not empty", len(docs))
 
-    page_lens = {doc.attrs.get("source", "Unknown"): len(doc.pages)
-                 for doc in docs}
+    page_lens = {}
+    for doc in docs:
+        source = doc.attrs.get("source", "Unknown")
+        page_lens.setdefault(source, []).append(len(doc.pages))
+    page_lens = {k: v if len(v) > 1 else v[0] for k, v in page_lens.items()}
     logger.debug("Loaded the following number of pages for docs:\n%s",
                  pprint.PrettyPrinter().pformat(page_lens))
-    return [doc for doc in docs if not doc.empty]
+    return docs
 
 
 async def _single_se_search(se_name, queries, num_urls, ignore_url_parts,
