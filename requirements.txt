@@ -17,7 +17,7 @@ networkx
 nltk
 numpy
 pandas
-tf-playwright-stealth
+playwright-stealth
 PyPDF2
 python-slugify
 rebrowser-playwright

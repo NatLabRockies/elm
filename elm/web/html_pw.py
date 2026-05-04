@@ -37,7 +37,7 @@ async def load_html_with_pw(url, browser_semaphore=None, # pragma: no cover
         By default, ``90,000``.
     use_scrapling_stealth : bool, default=False
         Option to use scrapling stealth scripts instead of
-        tf-playwright-stealth. By default, ``False``.
+        playwright-stealth. By default, ``False``.
     load_state : str, default="networkidle"
         The load state to wait for. One of:
 

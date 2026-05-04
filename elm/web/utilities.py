@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 import httpx
 from slugify import slugify
 from fake_useragent import UserAgent
-from playwright_stealth import stealth_async
+from playwright_stealth import Stealth
 from scrapling.engines import PlaywrightEngine
 
 from elm.web.document import PDFDocument
@@ -213,7 +213,7 @@ async def pw_page(browser, intercept_routes=False, stealth_config=None,
         Option to intercept all requests and abort blocked ones.
         Be default, ``False``.
     stealth_config : :class:`playwright_stealth.Stealth`, optional
-        Optional tf-playwright-stealth StealthConfig configuration
+        Optional playwright-stealth Stealth configuration
         object instance. By default, ``None``, which uses all the
         default stealth options.
     ignore_https_errors : bool, default=False
@@ -228,7 +228,7 @@ async def pw_page(browser, intercept_routes=False, stealth_config=None,
         assign to page instance. By default, ``30_000``.
     use_scrapling_stealth : bool, default=False
         Option to use scrapling stealth scripts instead of
-        tf-playwright-stealth. If set to ``True``, the `stealth_config`
+        playwright-stealth. If set to ``True``, the `stealth_config`
         argument will be ignored. By default, ``False``.
 
     Yields
@@ -241,6 +241,11 @@ async def pw_page(browser, intercept_routes=False, stealth_config=None,
                                  ignore_https_errors=ignore_https_errors)
 
     context = await browser.new_context(**ck)
+    if not use_scrapling_stealth:
+        if stealth_config is None:
+            stealth_config = Stealth()
+        logger.trace("Using playwright-stealth scripts for browser context")
+        await stealth_config.apply_stealth_async(context)
 
     try:
         logger.trace("Loading browser page")
@@ -253,9 +258,6 @@ async def pw_page(browser, intercept_routes=False, stealth_config=None,
             logger.trace("Using scrapling stealth scripts")
             for script in PWKwargs.stealth_scripts():
                 await page.add_init_script(path=script)
-        else:
-            logger.trace("Using tf-playwright-stealth stealth scripts")
-            await stealth_async(page, stealth_config)
 
         if intercept_routes:
             logger.trace("Intercepting requests and aborting blocked ones")
