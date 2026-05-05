@@ -237,7 +237,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             limits are applied. By default, ``None``.
         use_scrapling_stealth : bool, default=False
             Option to use scrapling stealth scripts instead of
-            tf-playwright-stealth. By default, ``False``.
+            playwright-stealth. By default, ``False``.
         num_pw_html_retries : int, default=3
             Number of attempts to load HTML content. This is useful
             because the playwright parameters are stochastic, and
@@ -389,7 +389,7 @@ class AsyncHTMLLoader:
             limits are applied. By default, ``None``.
         use_scrapling_stealth : bool, default=False
             Option to use scrapling stealth scripts instead of
-            tf-playwright-stealth. By default, ``False``.
+            playwright-stealth. By default, ``False``.
         num_pw_html_retries : int, default=3
             Number of attempts to load HTML content. This is useful
             because the playwright parameters are stochastic, and

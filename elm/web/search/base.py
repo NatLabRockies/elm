@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 
 from serpapi.serp_api_client import SerpApiClient
 from rebrowser_playwright.async_api import async_playwright
-from playwright_stealth import StealthConfig
+from playwright_stealth import Stealth
 
 from elm.web.utilities import PWKwargs, clean_search_query, pw_page
 
@@ -127,7 +127,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
     PAGE_LOAD_TIMEOUT = 60_000
     """Default page load timeout value in milliseconds"""
 
-    _SC = StealthConfig(navigator_user_agent=False)
+    _SC = Stealth(navigator_user_agent=False)
 
     def __init__(self, use_homepage=True, use_scrapling_stealth=False,
                  **launch_kwargs):
@@ -143,7 +143,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
             URL. By default, ``False``.
         use_scrapling_stealth : bool, default=False
             Option to use scrapling stealth scripts instead of
-            tf-playwright-stealth. If set to ``True``, the `_SC` class
+            playwright-stealth. If set to ``True``, the `_SC` class
             attribute will be ignored. By default, ``False``.
         **launch_kwargs
             Keyword arguments to be passed to
