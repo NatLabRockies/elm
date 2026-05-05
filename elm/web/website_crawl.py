@@ -63,6 +63,24 @@ ELM_URL_FILTER = URLPatternFilter(reverse=True, patterns=_BLACKLIST_SUBSTRINGS)
 """Filter used to exclude URLs that are not relevant to the search"""
 
 _SCORE_KEY = "website_link_relevance_score"
+_MOUSE_MOVE_JS = """
+// Random mouse movements
+const simulateHuman = () => {
+    const event = new MouseEvent('mousemove', {
+        clientX: Math.random() * window.innerWidth,
+        clientY: Math.random() * window.innerHeight
+    });
+    document.dispatchEvent(event);
+};
+setInterval(simulateHuman, 100 + Math.random() * 200);
+
+// Random scrolling
+const randomScroll = () => {
+    const scrollY = Math.random() * (document.body.scrollHeight - window.innerHeight);
+    window.scrollTo(0, scrollY);
+};
+setTimeout(randomScroll, 500 + Math.random() * 1000);
+"""
 
 
 class PeekablePriorityQueue(PriorityQueue):
@@ -440,7 +458,11 @@ class ELMWebsiteCrawler:
         self.page_limit = page_limit or 2 * max_pages
         self.afl = async_file_loader
 
-        bck = {"headless": True, "verbose": False}
+        bck = {"headless": True, "verbose": False,
+               "browser_type": "undetected",
+               "extra_args": ["--disable-blink-features=AutomationControlled",
+                              "--disable-web-security",
+                              "--disable-features=VizDisplayCompositor"]}
         bck.update(browser_config_kwargs or {})
         self.browser_config = BrowserConfig(**bck)
 
@@ -466,7 +488,8 @@ class ELMWebsiteCrawler:
                "log_console": False,
                "exclude_social_media_domains": ["youtube.com"],
                "exclude_social_media_links": True,
-               "semaphore_count": 1}
+               "semaphore_count": 1,
+               "js_code": _MOUSE_MOVE_JS}
         cck.update(crawler_config_kwargs or {})
         self.config = CrawlerRunConfig(**cck)
 
