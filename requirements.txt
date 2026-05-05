@@ -3,7 +3,7 @@ aiohttp
 beautifulsoup4
 camoufox
 click
-crawl4ai>=0.6.3,<0.7
+crawl4ai>=0.8.6
 ddgs
 fake_useragent>=2.0.3
 google-api-python-client
