@@ -37,15 +37,16 @@ setup(
     license="BSD 3-Clause",
     zip_safe=False,
     keywords="elm",
-    python_requires='>=3.9',
+    python_requires='>=3.10',
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Science/Research",
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
     ],
     install_requires=install_requires,
     extras_require={
