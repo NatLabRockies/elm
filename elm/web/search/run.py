@@ -313,7 +313,10 @@ async def load_docs(sources, file_loader):
     docs = await file_loader.fetch_all(*sources)
     logger.debug("Loaded %d docs from %d sources", len(docs), len(sources))
     docs = [doc for doc in docs if not doc.empty]
-    logger.debug("%d docs are not empty", len(docs))
+    if len(docs)== 1:
+        logger.debug("%d doc is not empty", len(docs))
+    else:
+        logger.debug("%d docs are not empty", len(docs))
 
     page_lens = {}
     for doc in docs:
