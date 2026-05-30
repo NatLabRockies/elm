@@ -131,6 +131,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
             - ddg_api_kwargs
             - google_cse_api_kwargs
             - google_serper_api_kwargs
+            - google_serpapi_kwargs
             - tavily_api_kwargs
             - ddgs_kwargs
             - cf_google_se_kwargs
@@ -235,6 +236,7 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
             - ddg_api_kwargs
             - google_cse_api_kwargs
             - google_serper_api_kwargs
+            - google_serpapi_kwargs
             - tavily_api_kwargs
             - ddgs_kwargs
             - cf_google_se_kwargs
@@ -280,16 +282,125 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
             return urls
     else:
         for se_name in search_engines:
-            logger.debug("Searching web using %r", se_name)
             urls = await _single_se_search(se_name, queries, num_urls,
                                            ignore_url_parts, browser_semaphore,
-                                           task_name, kwargs)
+                                           task_name, kwargs, raw=False)
             if urls:
                 return urls
 
     logger.warning("No web results found using %d search engines: %r",
                    len(search_engines), search_engines)
     return set()
+
+
+async def search_all_se(queries, search_engines=_DEFAULT_SE,
+                        num_urls=None, ignore_url_parts=None,
+                        browser_semaphore=None, task_name=None, **kwargs):
+    """Retrieve search query URLs using multiple search engines if needed
+
+    Parameters
+    ----------
+    queries : collection of str
+        Collection of strings representing google queries. Documents for
+        the top `num_urls` google search results (from all of these
+        queries _combined_ will be returned from this function.
+    search_engines : iterable of str
+        Ordered collection of search engine names to attempt for web
+        search. If the first search engine in the list returns a set
+        of URLs, then iteration will end and documents for each URL will
+        be returned. Otherwise, the next engine in this list will be
+        used to run the web search. If this also fails, the next engine
+        is used and so on. If all web searches fail, an empty list is
+        returned. See :obj:`~elm.web.search.run.SEARCH_ENGINE_OPTIONS`
+        for supported search engine options.
+        By default, ``("PlaywrightGoogleLinkSearch", )``.
+    num_urls : int, optional
+        Number of unique top Google search result to return as docs. The
+        google search results from all queries are interleaved and the
+        top `num_urls` unique URL's are downloaded as docs. If this
+        number is less than ``len(queries)``, some of your queries may
+        not contribute to the final output. By default, ``None``, which
+        sets ``num_urls = 3 * len(queries)``.
+    ignore_url_parts : iterable of str, optional
+        Optional URL components to blacklist. For example, supplying
+        `ignore_url_parts={"wikipedia.org"}` will ignore all URLs that
+        contain "wikipedia.org". By default, ``None``.
+    browser_semaphore : :class:`asyncio.Semaphore`, optional
+        Semaphore instance that can be used to limit the number of
+        playwright browsers open concurrently. If ``None``, no limits
+        are applied. By default, ``None``.
+    task_name : str, optional
+        Optional task name to use in :func:`asyncio.create_task`.
+        By default, ``None``.
+    use_fallback_per_query : bool, default=True
+        Option to use the fallback list of search engines on a per-query
+        basis. This means if a single query fails with one search
+        engine, the fallback search engines will be attempted for that
+        query. If this input is ``False``, the fallback search engines
+        are only used if *all* search queries fail for a single search
+        engine. By default, ``True``.
+    **kwargs
+        Keyword-argument pairs to initialize search engines. This input
+        can include and any/all of the following keywords:
+
+            - ddg_api_kwargs
+            - google_cse_api_kwargs
+            - google_serper_api_kwargs
+            - google_serpapi_kwargs
+            - tavily_api_kwargs
+            - ddgs_kwargs
+            - cf_google_se_kwargs
+            - pw_bing_se_kwargs
+            - pw_ddg_se_kwargs
+            - pw_google_cse_kwargs
+            - pw_google_se_kwargs
+            - pw_yahoo_se_kwargs
+            - pw_launch_kwargs
+
+        Each of these inputs should be a dictionary with
+        keyword-argument pairs that you can use to initialize the search
+        engines in the `search_engines` input. If ``pw_launch_kwargs``
+        is detected, it will be added to the kwargs for all of the
+        PLaywright-based search engines so that you do not have to
+        repeatedly specify the launch parameters. For example, you may
+        specify ``pw_launch_kwargs={"headless": False}`` to
+        have all Playwright-based searches show the browser and _also_
+        specify ``google_serper_api_kwargs={"api_key": "..."}`` to
+        specify the API key for the Google Serper search.
+
+    Returns
+    -------
+    list of list of dict
+        List of search results for each query, where each search result
+        is represented as a dictionary containing the following keys:
+
+            - url: URL of the search result
+            - query: The search query that resulted in this search result
+            - search_engine: The search engine that returned this result
+            - query_rank: The rank of this search result for the query
+
+        Other keys such as "attrs" may also be included depending on the
+        search engine.
+
+
+    Raises
+    ------
+    ELMInputError
+        If `search_engines` input is empty.
+    """
+    num_urls = num_urls or 3 * len(queries)
+    if len(search_engines) < 1:
+        msg = f"Must provide at least one search engine! Got {search_engines=}"
+        logger.error(msg)
+        raise ELMInputError(msg)
+
+    searchers = [asyncio.create_task(
+        _single_se_search(se_name, queries, num_urls,
+                          ignore_url_parts, browser_semaphore,
+                          task_name, kwargs, raw=True),
+        name=task_name) for se_name in search_engines]
+
+    return await asyncio.gather(*searchers)
 
 
 async def load_docs(sources, file_loader):
@@ -329,10 +440,14 @@ async def load_docs(sources, file_loader):
 
 
 async def _single_se_search(se_name, queries, num_urls, ignore_url_parts,
-                            browser_sem, task_name, kwargs):
+                            browser_sem, task_name, kwargs, raw=False):
     """Search for links using a single search engine"""
     _validate_se_name(se_name)
-    links = await _run_search(se_name, queries, browser_sem, task_name, kwargs)
+    logger.debug("Searching web using %r", se_name)
+    links = await _run_search(se_name, queries, browser_sem, task_name,
+                              kwargs, raw)
+    if raw:
+        return [link[0] for link in links]
     return _down_select_urls(links, num_urls=num_urls,
                              ignore_url_parts=ignore_url_parts)
 
@@ -347,7 +462,7 @@ async def _multi_se_search(search_engines, queries, num_urls,
 
         logger.debug("Searching web using %r", se_name)
         links = await _run_search(se_name, remaining_queries, browser_sem,
-                                  task_name, kwargs)
+                                  task_name, kwargs, raw=False)
         logger.trace("Links: %r", links)
 
         failed_queries = []
@@ -369,15 +484,16 @@ async def _multi_se_search(search_engines, queries, num_urls,
                              ignore_url_parts=ignore_url_parts)
 
 
-async def _run_search(se_name, queries, browser_sem, task_name, kwargs):
+async def _run_search(se_name, queries, browser_sem, task_name, kwargs, raw):
     """Run a search for multiple queries on a single search engine"""
     searchers = [asyncio.create_task(_single_query_search(se_name, query,
-                                                          browser_sem, kwargs),
+                                                          browser_sem, kwargs,
+                                                          raw),
                                      name=task_name) for query in queries]
     return await asyncio.gather(*searchers)
 
 
-async def _single_query_search(se_name, query, browser_sem, kwargs):
+async def _single_query_search(se_name, query, browser_sem, kwargs, raw):
     """Execute a single search query on a single search engine"""
     try:
         search_engine, uses_browser = _init_se(se_name, kwargs)
@@ -390,12 +506,13 @@ async def _single_query_search(se_name, query, browser_sem, kwargs):
         # help avoid some detection by staggering the browser launches
         await asyncio.sleep(random.uniform(1, 10))
         return await _single_query_pw(search_engine, query,
-                                      browser_sem=browser_sem)
+                                      browser_sem=browser_sem,
+                                      raw=raw)
 
-    return await _single_query_api(search_engine, query)
+    return await _single_query_api(search_engine, query, raw=raw)
 
 
-async def _single_query_pw(search_engine, question, browser_sem):
+async def _single_query_pw(search_engine, question, browser_sem, raw=False):
     """Perform a single browser-based search"""
     if browser_sem is None:
         browser_sem = AsyncExitStack()
@@ -405,14 +522,16 @@ async def _single_query_pw(search_engine, question, browser_sem):
         logger.trace("Starting %s search for %r with browser_semaphore=%r",
                      search_engine._SE_NAME, question, browser_sem)
         return await search_engine.results(question,
-                                           num_results=_RESULTS_PER_QUERY)
+                                           num_results=_RESULTS_PER_QUERY,
+                                           raw=raw)
 
 
-async def _single_query_api(search_engine, question):
+async def _single_query_api(search_engine, question, raw=False):
     """Perform a single api-based search"""
     logger.trace("Starting %s search for %r", search_engine._SE_NAME, question)
     return await search_engine.results(question,
-                                       num_results=_RESULTS_PER_QUERY)
+                                       num_results=_RESULTS_PER_QUERY,
+                                       raw=raw)
 
 
 def _init_se(se_name, kwargs):
