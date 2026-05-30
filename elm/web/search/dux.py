@@ -4,7 +4,7 @@ import logging
 
 from ddgs import DDGS
 
-from elm.web.search.base import SearchEngineLinkSearch
+from elm.web.search.base import SearchEngineLinkSearch, format_search_results
 
 
 logger = logging.getLogger(__name__)
@@ -68,7 +68,7 @@ class DuxDistributedGlobalSearch(SearchEngineLinkSearch):
         self.timeout = timeout
         self.verify = verify
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
         ddgs = DDGS(timeout=self.timeout, verify=self.verify)
@@ -79,5 +79,5 @@ class DuxDistributedGlobalSearch(SearchEngineLinkSearch):
                             backend=self.backend,
                             max_results=num_results)
 
-        return list(filter(None, (info.get('href', "").replace("+", "%20")
-                                  for info in results)))
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="href", raw=raw)
