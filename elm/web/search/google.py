@@ -274,7 +274,7 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
 
         client = PatchedSerpApiClient(params, engine="google",
                                       verify=self.verify)
-        results = client.get_dict()
+        results = await client.async_get_dict()
         results = (results or {}).get("organic_results", [])
         return format_search_results(self._SE_NAME, query, results,
                                      url_key="link", raw=raw)[:num_results]

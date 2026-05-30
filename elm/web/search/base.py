@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """ELM Web Scraping - Base class for search engine search"""
 import os
+import json
 import random
 import asyncio
 import logging
 import requests
+import httpx
 from urllib.parse import quote
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -324,6 +326,34 @@ class PatchedSerpApiClient(SerpApiClient):
             logger.error(e, e.response.status_code)
             raise e
 
+    async def async_get_response(self, path='/search'):
+        """Get search response
+
+        Parameters
+        ----------
+        path : str, default='/search'
+            API path to use for the search.
+
+        Returns
+        -------
+            Response object provided by ``httpx.AsyncClient.get``.
+        """
+        url = None
+        try:
+            url, parameter = self.construct_url(path)
+            timeout = self.timeout / 1000
+            async with httpx.AsyncClient(verify=self.verify,
+                                         timeout=timeout) as client:
+                response = await client.get(url, params=parameter)
+            return response
+        except httpx.HTTPError as e:
+            logger.error("fail: " + url)
+            if e.response is not None:
+                logger.error(e, e.response.status_code)
+            else:
+                logger.error(e)
+            raise e
+
     async def async_get_dict(self, path='/search'):
         """Get search response as dict
 
@@ -337,7 +367,7 @@ class PatchedSerpApiClient(SerpApiClient):
         Dict with the formatted response content
         """
         self.params_dict["output"] = "json"
-        return dict(json.loads(self.get_response(path).text))
+        return dict(json.loads((await self.async_get_response(path)).text))
 
 
 def format_search_results(se_name, query, results, url_key, raw=False):
