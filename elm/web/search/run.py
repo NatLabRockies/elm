@@ -332,13 +332,6 @@ async def search_all_se(queries, search_engines=_DEFAULT_SE,
     task_name : str, optional
         Optional task name to use in :func:`asyncio.create_task`.
         By default, ``None``.
-    use_fallback_per_query : bool, default=True
-        Option to use the fallback list of search engines on a per-query
-        basis. This means if a single query fails with one search
-        engine, the fallback search engines will be attempted for that
-        query. If this input is ``False``, the fallback search engines
-        are only used if *all* search queries fail for a single search
-        engine. By default, ``True``.
     **kwargs
         Keyword-argument pairs to initialize search engines. This input
         can include and any/all of the following keywords:
