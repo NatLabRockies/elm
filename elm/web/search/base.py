@@ -248,7 +248,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
             if len(links) >= num_results:
                 break
 
-        return _format_url_results(links, raw=raw)
+        return _format_url_results(self._SE_NAME, query, links, raw=raw)
 
     @property
     @abstractmethod
@@ -325,11 +325,15 @@ class PatchedSerpApiClient(SerpApiClient):
             raise e
 
 
-def format_search_results(results, url_key, raw=False):
+def format_search_results(se_name, query, results, url_key, raw=False):
     """Normalize structured search results into a consistent shape
 
     Parameters
     ----------
+    se_name : str
+        Name of the search engine that produced the results.
+    query : str
+        The search query corresponding to the search results.
     results : iterable of dict
         Iterable of search result records, where each record is a dict
         containing at least a key corresponding to `url_key` whose value
@@ -349,13 +353,16 @@ def format_search_results(results, url_key, raw=False):
         each search result.
     """
     formatted_results = []
-    for info in results:
+    for rank, info in enumerate(results, start=1):
         url = _clean_search_result_url(info.get(url_key, ""))
         if not url:
             continue
 
         if raw:
-            formatted_results.append({"url": url, "attrs": info})
+            formatted_results.append({"url": url, "query": query,
+                                      "search_engine": se_name,
+                                      "query_rank": rank,
+                                      "attrs": info})
         else:
             formatted_results.append(url)
 
@@ -375,11 +382,13 @@ def _clean_search_result_url(url):
     return (url or "").replace("+", "%20")
 
 
-def _format_url_results(urls, raw=False):
+def _format_url_results(se_name, query, urls, raw=False):
     """Normalize URL-only search results into a consistent shape"""
     formatted_results = list(filter(None, (_clean_search_result_url(url)
                                           for url in urls)))
     if not raw:
         return formatted_results
 
-    return [{"url": url} for url in formatted_results]
+    return [{"url": url, "query": query, "search_engine": se_name,
+             "query_rank": rank,}
+            for rank, url in enumerate(formatted_results, start=1)]

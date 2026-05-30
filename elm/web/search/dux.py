@@ -79,4 +79,5 @@ class DuxDistributedGlobalSearch(SearchEngineLinkSearch):
                             backend=self.backend,
                             max_results=num_results)
 
-        return format_search_results(results, "href", raw=raw)
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="href", raw=raw)

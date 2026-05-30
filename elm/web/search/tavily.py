@@ -147,4 +147,5 @@ class APITavilySearch(APISearchEngineLinkSearch):
         client = _PatchedTavilyClient(api_key=self.api_key, verify=self.verify)
         response = client.search(query=query, max_results=num_results)
         results = response.get("results", [])
-        return format_search_results(results, "url", raw=raw)
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="url", raw=raw)

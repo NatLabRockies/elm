@@ -238,7 +238,8 @@ class APIGoogleCSESearch(APISearchEngineLinkSearch):
 
         results = build(**build_args).cse().list(**search_args).execute()
         results = (results or {}).get('items', [])
-        return format_search_results(results, "link", raw=raw)
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)
 
 
 class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
@@ -275,7 +276,8 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
                                       verify=self.verify)
         results = client.get_dict()
         results = (results or {}).get("organic_results", [])
-        return format_search_results(results, "link", raw=raw)[:num_results]
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)[:num_results]
 
 
 class APISerperSearch(APISearchEngineLinkSearch):
@@ -313,4 +315,5 @@ class APISerperSearch(APISearchEngineLinkSearch):
         response = requests.request("POST", self._URL, headers=headers,
                                     data=payload, verify=self.verify)
         results = json.loads(response.text).get('organic', [])
-        return format_search_results(results, "link", raw=raw)
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)
