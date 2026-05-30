@@ -324,6 +324,21 @@ class PatchedSerpApiClient(SerpApiClient):
             logger.error(e, e.response.status_code)
             raise e
 
+    async def async_get_dict(self, path='/search'):
+        """Get search response as dict
+
+        Parameters
+        ----------
+        path : str, default='/search'
+            API path to use for the search.
+
+        Returns
+        -------
+        Dict with the formatted response content
+        """
+        self.params_dict["output"] = "json"
+        return dict(json.loads(self.get_response(path).text))
+
 
 def format_search_results(se_name, query, results, url_key, raw=False):
     """Normalize structured search results into a consistent shape
