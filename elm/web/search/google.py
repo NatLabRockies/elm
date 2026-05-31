@@ -14,7 +14,8 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from elm.web.search.base import (PlaywrightSearchEngineLinkSearch,
                                  APISearchEngineLinkSearch,
-                                 PatchedSerpApiClient)
+                                 PatchedSerpApiClient,
+                                 format_search_results)
 
 
 logger = logging.getLogger(__name__)
@@ -228,7 +229,7 @@ class APIGoogleCSESearch(APISearchEngineLinkSearch):
         super().__init__(api_key=api_key)
         self.cse_id = cse_id or os.environ.get(self.CSE_ID_VAR or "")
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
         build_args = dict(self._BUILD_ARGS)
         build_args["developerKey"] = self.api_key
@@ -237,7 +238,8 @@ class APIGoogleCSESearch(APISearchEngineLinkSearch):
 
         results = build(**build_args).cse().list(**search_args).execute()
         results = (results or {}).get('items', [])
-        return list(filter(None, (info.get("link") for info in results)))
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)
 
 
 class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
@@ -264,7 +266,7 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
         super().__init__(api_key=api_key)
         self.verify = verify
 
-    async def _search(self, query, num_results=10, **param_kwargs):
+    async def _search(self, query, num_results=10, raw=False, **param_kwargs):
         """Search web for links related to a query"""
 
         params = {"q": query, "hl": "en", "gl": "us", "api_key": self.api_key}
@@ -272,10 +274,10 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
 
         client = PatchedSerpApiClient(params, engine="google",
                                       verify=self.verify)
-        results = client.get_dict()
-        results = results.get("organic_results", [])
-        return list(filter(None, (info.get('link', "").replace("+", "%20")
-                                  for info in results)))[:num_results]
+        results = await client.async_get_dict()
+        results = (results or {}).get("organic_results", [])
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)[:num_results]
 
 
 class APISerperSearch(APISearchEngineLinkSearch):
@@ -303,7 +305,7 @@ class APISerperSearch(APISearchEngineLinkSearch):
         super().__init__(api_key=api_key)
         self.verify = verify
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
         payload = json.dumps({"q": query, "num": num_results})
@@ -312,6 +314,6 @@ class APISerperSearch(APISearchEngineLinkSearch):
 
         response = requests.request("POST", self._URL, headers=headers,
                                     data=payload, verify=self.verify)
-        results = json.loads(response.text).get('organic', {})
-        return list(filter(None, (result.get("link", "").replace("+", "%20")
-                                  for result in results)))
+        results = json.loads(response.text).get('organic', [])
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)

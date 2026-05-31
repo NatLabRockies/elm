@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """ELM Web Scraping - Base class for search engine search"""
 import os
+import json
 import random
 import asyncio
 import logging
 import requests
+import httpx
 from urllib.parse import quote
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -24,7 +26,7 @@ class SearchEngineLinkSearch(ABC):
 
     _SE_NAME = "<unknown se>"
 
-    async def results(self, *queries, num_results=10):
+    async def results(self, *queries, num_results=10, raw=False):
         """Retrieve links for the first `num_results` of each query
 
         This function executes a search for each input query and
@@ -44,24 +46,28 @@ class SearchEngineLinkSearch(ABC):
             determined by the number of results on a page (excluding
             ads). You can, however, use this input to limit the number
             of results returned. By default, ``10``.
+        raw : bool, optional
+            If ``True``, return provider-specific records that always
+            include a ``"url"`` field. By default, ``False``.
 
         Returns
         -------
         list
             List equal to the length of the input queries, where each
             entry is another list containing no more than `num_results`
-            links.
+            links or raw result records.
         """
         queries = map(clean_search_query, queries)
-        return await self._get_links(queries, num_results)
+        return await self._get_links(queries, num_results, raw=raw)
 
-    async def _get_links(self, queries, num_results):
+    async def _get_links(self, queries, num_results, raw=False):
         """Get links for multiple queries"""
         outer_task_name = asyncio.current_task().get_name()
 
         searches = [
             asyncio.create_task(
-                self._skip_exc_search(query, num_results=num_results),
+                self._skip_exc_search(query, num_results=num_results,
+                                      raw=raw),
                 name=outer_task_name,
             )
             for query in queries
@@ -72,10 +78,10 @@ class SearchEngineLinkSearch(ABC):
         logger.trace("Got results for link search:\n%r", results)
         return results
 
-    async def _skip_exc_search(self, query, num_results=10):
+    async def _skip_exc_search(self, query, num_results=10, raw=False):
         """Perform search while ignoring errors"""
         try:
-            return await self._search(query, num_results=num_results)
+            return await self._search(query, num_results=num_results, raw=raw)
         except KeyboardInterrupt:
             raise
         except Exception as e:
@@ -113,7 +119,7 @@ class SearchEngineLinkSearch(ABC):
         return await page.mouse.click(x, y)
 
     @abstractmethod
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
         raise NotImplementedError
 
@@ -181,7 +187,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
         async with pw_page(**page_kwargs) as page:
             yield page
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
         logger.debug("Searching %s: %r", self._SE_NAME, query)
         num_results = min(num_results, self.MAX_RESULTS_CONSIDERED_PER_PAGE)
@@ -200,16 +206,17 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
                 await _navigate_to_se_url(page, se_url=url,
                                           timeout=self.PAGE_LOAD_TIMEOUT)
             logger.trace("Extracting links for query: %r", query)
-            return await self._extract_links(page, num_results, query)
+            return await self._extract_links(page, num_results, query, raw=raw)
 
-    async def _get_links(self, queries, num_results):
+    async def _get_links(self, queries, num_results, raw=False):
         """Get links for multiple queries"""
         outer_task_name = asyncio.current_task().get_name()
         async with async_playwright() as pw_instance:
             await self._load_browser(pw_instance)
             searches = [
                 asyncio.create_task(
-                    self._skip_exc_search(query, num_results=num_results),
+                    self._skip_exc_search(query, num_results=num_results,
+                                          raw=raw),
                     name=outer_task_name,
                 )
                 for query in queries
@@ -221,7 +228,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
             await self._close_browser()
         return results
 
-    async def _extract_links(self, page, num_results, query):
+    async def _extract_links(self, page, num_results, query, raw=False):
         """Extract links for top `num_results` on page"""
         await page.wait_for_load_state("networkidle",
                                        timeout=self.PAGE_LOAD_TIMEOUT)
@@ -243,7 +250,7 @@ class PlaywrightSearchEngineLinkSearch(SearchEngineLinkSearch):
             if len(links) >= num_results:
                 break
 
-        return links
+        return _format_url_results(self._SE_NAME, query, links, raw=raw)
 
     @property
     @abstractmethod
@@ -319,9 +326,114 @@ class PatchedSerpApiClient(SerpApiClient):
             logger.error(e, e.response.status_code)
             raise e
 
+    async def async_get_response(self, path='/search'):
+        """Get search response
+
+        Parameters
+        ----------
+        path : str, default='/search'
+            API path to use for the search.
+
+        Returns
+        -------
+            Response object provided by ``httpx.AsyncClient.get``.
+        """
+        url = None
+        try:
+            url, parameter = self.construct_url(path)
+            timeout = self.timeout / 1000
+            async with httpx.AsyncClient(verify=self.verify,
+                                         timeout=timeout) as client:
+                response = await client.get(url, params=parameter)
+            return response
+        except httpx.HTTPError as e:
+            logger.error("fail: " + url)
+            if e.response is not None:
+                logger.error(e, e.response.status_code)
+            else:
+                logger.error(e)
+            raise e
+
+    async def async_get_dict(self, path='/search'):
+        """Get search response as dict
+
+        Parameters
+        ----------
+        path : str, default='/search'
+            API path to use for the search.
+
+        Returns
+        -------
+        Dict with the formatted response content
+        """
+        self.params_dict["output"] = "json"
+        return dict(json.loads((await self.async_get_response(path)).text))
+
+
+def format_search_results(se_name, query, results, url_key, raw=False):
+    """Normalize structured search results into a consistent shape
+
+    Parameters
+    ----------
+    se_name : str
+        Name of the search engine that produced the results.
+    query : str
+        The search query corresponding to the search results.
+    results : iterable of dict
+        Iterable of search result records, where each record is a dict
+        containing at least a key corresponding to `url_key` whose value
+        is the URL of the search result.
+    url_key : str
+        Key in each search result record that corresponds to the URL of
+        the search result.
+    raw : bool, optional
+        Option to return a list of dicts with attrs for each query
+        instead of only a list of url strings. By default, ``False``.
+
+    Returns
+    -------
+    list
+        List of URLs corresponding to the search results, or if
+        `raw=True`, a list of dicts containing the URL and attrs for
+        each search result.
+    """
+    formatted_results = []
+    for rank, info in enumerate(results, start=1):
+        url = _clean_search_result_url(info.get(url_key, ""))
+        if not url:
+            continue
+
+        if raw:
+            formatted_results.append({"url": url, "query": query,
+                                      "search_engine": se_name,
+                                      "query_rank": rank,
+                                      "attrs": info})
+        else:
+            formatted_results.append(url)
+
+    return formatted_results
+
 
 async def _navigate_to_se_url(page, se_url, timeout=90_000):
     """Navigate to search engine url"""
     await page.goto(se_url)
     logger.trace("Waiting for load")
     await page.wait_for_load_state("networkidle", timeout=timeout)
+
+
+
+def _clean_search_result_url(url):
+    """Normalize a search result URL"""
+    return (url or "").replace("+", "%20")
+
+
+def _format_url_results(se_name, query, urls, raw=False):
+    """Normalize URL-only search results into a consistent shape"""
+    formatted_results = list(filter(None, (_clean_search_result_url(url)
+                                          for url in urls)))
+    if not raw:
+        return formatted_results
+
+    return [{"url": url, "query": query, "search_engine": se_name,
+             "query_rank": rank,}
+            for rank, url in enumerate(formatted_results, start=1)]

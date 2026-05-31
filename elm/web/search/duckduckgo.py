@@ -7,7 +7,8 @@ import logging
 from ddgs import DDGS
 
 from elm.web.search.base import (PlaywrightSearchEngineLinkSearch,
-                                 SearchEngineLinkSearch)
+                                 SearchEngineLinkSearch,
+                                 format_search_results)
 
 
 logger = logging.getLogger(__name__)
@@ -80,7 +81,7 @@ class APIDuckDuckGoSearch(SearchEngineLinkSearch):
         self.sleep_min_seconds = sleep_min_seconds
         self.sleep_max_seconds = sleep_max_seconds
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
         ddgs = DDGS(timeout=self.timeout, verify=self.verify)
@@ -88,14 +89,15 @@ class APIDuckDuckGoSearch(SearchEngineLinkSearch):
                             backend="duckduckgo",
                             num_results=num_results)
 
-        return list(filter(None, (info.get('href', "").replace("+", "%20")
-                                  for info in results)))
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="href", raw=raw)
 
-    async def _skip_exc_search(self, query, num_results=10):
+    async def _skip_exc_search(self, query, num_results=10, raw=False):
         """Sleep between DDG searched to avoid rate limiting"""
         async with _DDGS_SEMAPHORE:
             try:
-                out = await self._search(query, num_results=num_results)
+                out = await self._search(query, num_results=num_results,
+                                         raw=raw)
             except Exception as e:
                 logger.exception(e)
                 out = []

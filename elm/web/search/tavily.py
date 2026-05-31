@@ -8,7 +8,8 @@ from tavily import TavilyClient
 from tavily.errors import (UsageLimitExceededError, InvalidAPIKeyError,
                            BadRequestError, ForbiddenError)
 
-from elm.web.search.base import APISearchEngineLinkSearch
+from elm.web.search.base import (APISearchEngineLinkSearch,
+                                 format_search_results)
 
 
 logger = logging.getLogger(__name__)
@@ -140,11 +141,11 @@ class APITavilySearch(APISearchEngineLinkSearch):
         super().__init__(api_key=api_key)
         self.verify = verify
 
-    async def _search(self, query, num_results=10):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
         client = _PatchedTavilyClient(api_key=self.api_key, verify=self.verify)
         response = client.search(query=query, max_results=num_results)
         results = response.get("results", [])
-        return list(filter(None, (info.get('url', "").replace("+", "%20")
-                                  for info in results)))
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="url", raw=raw)
