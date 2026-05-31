@@ -110,7 +110,7 @@ class BaseAsyncFileLoader(ABC):
             raise
         except Exception as e:
             msg = ("Encountered error of type %r while fetching document from "
-                   "%s:")
+                   "%s :")
             err_type = type(e)
             logger.exception(msg, err_type, source)
             return HTMLDocument(pages=[])
