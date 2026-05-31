@@ -381,6 +381,9 @@ async def search_all_se(queries, search_engines=_DEFAULT_SE,
     ELMInputError
         If `search_engines` input is empty.
     """
+    logger.debug("Running %d queries over these search engines: %r\n"
+                 "Queries:\n\t- %s", len(queries), search_engines,
+                 "\n\t- ".join(queries))
     num_urls = num_urls or 3 * len(queries)
     if len(search_engines) < 1:
         msg = f"Must provide at least one search engine! Got {search_engines=}"
