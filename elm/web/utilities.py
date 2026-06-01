@@ -133,8 +133,9 @@ async def get_redirected_url(url, **kwargs):
 
     kwargs["follow_redirects"] = True
     event_hooks = kwargs.setdefault("event_hooks", {})
-    event_hooks["response"] = (event_hooks.get("response", [])
-                               .append(_check_redirect_safety))
+    response_hooks = list(event_hooks.get("response") or [])
+    response_hooks.append(_check_redirect_safety)
+    event_hooks["response"] = response_hooks
 
     try:
         async with httpx.AsyncClient(**kwargs) as client:

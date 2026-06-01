@@ -3,11 +3,13 @@
 from pathlib import Path
 
 import pytest
+import httpx
 
 from elm.web.document import HTMLDocument
 from elm.web.utilities import (
     clean_search_query,
     compute_fn_from_url,
+    get_redirected_url,
     write_url_doc_to_file,
 )
 
@@ -88,6 +90,28 @@ def test_write_url_doc_to_file(tmp_path):
         assert fh.read().startswith("test")
 
     assert out_fp.name == "examplecom20test.txt"
+
+
+@pytest.mark.asyncio
+async def test_get_redirected_url_preserves_response_hooks():
+    """Test redirect lookup with an existing response hook."""
+
+    seen_urls = []
+
+    async def response_hook(response):
+        seen_urls.append(str(response.url))
+
+    def handler(request):
+        return httpx.Response(200, request=request)
+
+    out = await get_redirected_url(
+        "https://www.example.com",
+        transport=httpx.MockTransport(handler),
+        event_hooks={"response": [response_hook]},
+    )
+
+    assert out == "https://www.example.com"
+    assert seen_urls == ["https://www.example.com"]
 
 
 if __name__ == "__main__":
