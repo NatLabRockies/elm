@@ -1,13 +1,12 @@
 # -*- coding: utf-8 -*-
 """ELM Web Scraping - Google search."""
 import os
-import json
 import random
 import asyncio
 import logging
-import requests
 from contextlib import asynccontextmanager
 
+import httpx
 from camoufox.async_api import AsyncCamoufox
 from googleapiclient.discovery import build
 from playwright.async_api import TimeoutError as PlaywrightTimeoutError
@@ -308,12 +307,14 @@ class APISerperSearch(APISearchEngineLinkSearch):
     async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
-        payload = json.dumps({"q": query, "num": num_results})
-        headers = {'X-API-KEY': self.api_key,
-                   'Content-Type': 'application/json'}
+        payload = {"q": query, "num": num_results}
+        headers = {"X-API-KEY": self.api_key}
 
-        response = requests.request("POST", self._URL, headers=headers,
-                                    data=payload, verify=self.verify)
-        results = json.loads(response.text).get('organic', [])
+        async with httpx.AsyncClient(verify=self.verify) as client:
+            response = await client.post(self._URL, headers=headers,
+                                         json=payload)
+            response.raise_for_status()
+
+        results = response.json().get("organic", [])
         return format_search_results(self._SE_NAME, query, results,
                                      url_key="link", raw=raw)
