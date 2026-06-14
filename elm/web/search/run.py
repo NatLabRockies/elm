@@ -61,6 +61,7 @@ _DEFAULT_SE = ("PlaywrightGoogleLinkSearch", "PlaywrightDuckDuckGoLinkSearch",
 
 async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
                                    num_urls=None, url_ignore_substrings=None,
+                                   url_keep_substrings=None,
                                    search_semaphore=None,
                                    browser_semaphore=None, task_name=None,
                                    use_fallback_per_query=True,
@@ -96,7 +97,12 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
     url_ignore_substrings : iterable of str, optional
         Optional URL components to blacklist. For example, supplying
         `url_ignore_substrings={"wikipedia.org"}` will ignore all URLs
-        that contain "wikipedia.org". By default, ``None``.
+        that contain "wikipedia.org". Substrings are applied
+        case-insensitively. By default, ``None``.
+    url_keep_substrings : list of str, optional
+        URL substrings that should be included in search results even if
+        they match an ignore substring. Substrings are applied
+        case-insensitively. By default, ``None``.
     search_semaphore : :class:`asyncio.Semaphore`, optional
         Semaphore instance that can be used to limit the number of
         playwright browsers used to submit search engine queries open
@@ -169,6 +175,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
     urls = await search_with_fallback(queries, search_engines=search_engines,
                                       num_urls=num_urls,
                                       url_ignore_substrings=ignore,
+                                      url_keep_substrings=url_keep_substrings,
                                       browser_semaphore=search_semaphore,
                                       task_name=task_name,
                                       use_fallback_per_query=fpq, **kwargs)
@@ -186,6 +193,7 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
 
 async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
                                num_urls=None, url_ignore_substrings=None,
+                               url_keep_substrings=None,
                                browser_semaphore=None, task_name=None,
                                use_fallback_per_query=True, **kwargs):
     """Retrieve search query URLs using multiple search engines if needed
@@ -216,7 +224,12 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     url_ignore_substrings : iterable of str, optional
         Optional URL components to blacklist. For example, supplying
         `url_ignore_substrings={"wikipedia.org"}` will ignore all URLs
-        that contain "wikipedia.org". By default, ``None``.
+        that contain "wikipedia.org". Substrings are applied
+        case-insensitively. By default, ``None``.
+    url_keep_substrings : list of str, optional
+        URL substrings that should be included in search results even if
+        they match an ignore substring. Substrings are applied
+        case-insensitively. By default, ``None``.
     browser_semaphore : :class:`asyncio.Semaphore`, optional
         Semaphore instance that can be used to limit the number of
         playwright browsers open concurrently. If ``None``, no limits
@@ -279,15 +292,16 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     ignore, kwargs = _handle_old_ignore_key(url_ignore_substrings, kwargs)
     if use_fallback_per_query:
         urls = await _multi_se_search(search_engines, queries, num_urls,
-                                      ignore, browser_semaphore,
-                                      task_name, kwargs)
+                                      ignore, url_keep_substrings,
+                                      browser_semaphore, task_name, kwargs)
         if urls:
             return urls
     else:
         for se_name in search_engines:
             urls = await _single_se_search(se_name, queries, num_urls,
-                                           ignore, browser_semaphore,
-                                           task_name, kwargs, raw=False)
+                                           ignore, url_keep_substrings,
+                                           browser_semaphore, task_name,
+                                           kwargs, raw=False)
             if urls:
                 return urls
 
@@ -298,7 +312,8 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
 
 async def search_all_se(queries, search_engines=_DEFAULT_SE,
                         num_urls=None, url_ignore_substrings=None,
-                        browser_semaphore=None, task_name=None, **kwargs):
+                        url_keep_substrings=None, browser_semaphore=None,
+                        task_name=None, **kwargs):
     """Retrieve search query URLs using multiple search engines if needed
 
     Parameters
@@ -327,7 +342,12 @@ async def search_all_se(queries, search_engines=_DEFAULT_SE,
     url_ignore_substrings : iterable of str, optional
         Optional URL components to blacklist. For example, supplying
         `url_ignore_substrings={"wikipedia.org"}` will ignore all URLs
-        that contain "wikipedia.org". By default, ``None``.
+        that contain "wikipedia.org". Substrings are applied
+        case-insensitively. By default, ``None``.
+    url_keep_substrings : list of str, optional
+        URL substrings that should be included in search results even if
+        they match an ignore substring. Substrings are applied
+        case-insensitively. By default, ``None``.
     browser_semaphore : :class:`asyncio.Semaphore`, optional
         Semaphore instance that can be used to limit the number of
         playwright browsers open concurrently. If ``None``, no limits
@@ -392,8 +412,8 @@ async def search_all_se(queries, search_engines=_DEFAULT_SE,
 
     ignore, kwargs = _handle_old_ignore_key(url_ignore_substrings, kwargs)
     searchers = [asyncio.create_task(
-        _single_se_search(se_name, queries, num_urls,
-                          ignore, browser_semaphore,
+        _single_se_search(se_name, queries, num_urls, ignore,
+                          url_keep_substrings, browser_semaphore,
                           task_name, kwargs, raw=True),
         name=task_name) for se_name in search_engines]
 
@@ -437,7 +457,8 @@ async def load_docs(sources, file_loader):
 
 
 async def _single_se_search(se_name, queries, num_urls, url_ignore_substrings,
-                            browser_sem, task_name, kwargs, raw=False):
+                            url_keep_substrings, browser_sem, task_name,
+                            kwargs, raw=False):
     """Search for links using a single search engine"""
     _validate_se_name(se_name)
     logger.debug("Searching web using %r", se_name)
@@ -446,12 +467,13 @@ async def _single_se_search(se_name, queries, num_urls, url_ignore_substrings,
     if raw:
         return [link[0] for link in links]
     return _down_select_urls(links, num_urls=num_urls,
-                             url_ignore_substrings=url_ignore_substrings)
+                             url_ignore_substrings=url_ignore_substrings,
+                             url_keep_substrings=url_keep_substrings)
 
 
 async def _multi_se_search(search_engines, queries, num_urls,
-                           url_ignore_substrings, browser_sem, task_name,
-                           kwargs):
+                           url_ignore_substrings, url_keep_substrings,
+                           browser_sem, task_name, kwargs):
     """Search for links using one or more search engines as fallback"""
     outputs = {q: None for q in queries}
     remaining_queries = list(queries)
@@ -479,7 +501,8 @@ async def _multi_se_search(search_engines, queries, num_urls,
     links = [link or [[]] for link in outputs.values()]
 
     return _down_select_urls(links, num_urls=num_urls,
-                             url_ignore_substrings=url_ignore_substrings)
+                             url_ignore_substrings=url_ignore_substrings,
+                             url_keep_substrings=url_keep_substrings)
 
 
 async def _run_search(se_name, queries, browser_sem, task_name, kwargs, raw):
@@ -544,19 +567,28 @@ def _init_se(se_name, kwargs):
     return se_class(**init_kwargs), uses_browser
 
 
-def _down_select_urls(search_results, num_urls=5, url_ignore_substrings=None):
+def _down_select_urls(search_results, num_urls=5, url_ignore_substrings=None,
+                      url_keep_substrings=None):
     """Select the top N URLs"""
     url_ignore_substrings = _as_set(url_ignore_substrings)
+    url_keep_substrings = _as_set(url_keep_substrings)
     all_urls = chain.from_iterable(zip_longest(*[results[0]
                                                  for results
                                                  in search_results]))
     urls = set()
     for url in all_urls:
-        if not url or any(substr in url for substr in url_ignore_substrings):
+        if not url:
             continue
+
+        is_whitelisted = any(substr in url for substr in url_keep_substrings)
+        is_blacklisted = any(substr in url for substr in url_ignore_substrings)
+        if not is_whitelisted and is_blacklisted:
+            continue
+
         urls.add(url)
         if len(urls) == num_urls:
             break
+
     return urls
 
 
@@ -564,7 +596,7 @@ def _as_set(user_input):
     """Convert user input (possibly None or str) to set of strings"""
     if isinstance(user_input, str):
         user_input = {user_input}
-    return set(user_input or [])
+    return {substr.casefold() for substr in (user_input or [])}
 
 
 def _validate_se_name(se_name):
@@ -577,6 +609,7 @@ def _validate_se_name(se_name):
 
 
 def _handle_old_ignore_key(url_ignore_substrings, kwargs):
+    """Handle old input gracefully"""
     old_ignore_key = kwargs.pop("ignore_url_parts", None)
     if old_ignore_key is None:
         return url_ignore_substrings, kwargs
