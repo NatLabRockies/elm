@@ -16,7 +16,8 @@ from elm.exceptions import ELMKeyError
 async def test_single_se_search_name_dne():
     """Test error for unknown search engine"""
     with pytest.raises(ELMKeyError) as err:
-        await _single_se_search("DNE", None, None, None, None, None, None)
+        await _single_se_search("DNE", None, None, None, None, None, None,
+                                None)
 
     assert "'se_name' must be one of" in str(err)
 
@@ -39,6 +40,25 @@ def test_down_select_urls_diff_lens():
 def test_down_select_urls_one_empty():
     """Test down selecting URLs when one result is empty"""
     assert _down_select_urls([[[]], [['bc', 'cd']]]) == {'bc', 'cd'}
+
+
+def test_down_select_urls_keep_substrings_override_ignore():
+    """Test keep substrings override ignored URLs"""
+    results = [[[
+        "https://blocked.com/keep-me",
+        "https://blocked.com/drop-me",
+    ]], [["https://allowed.com/keep"]]]
+
+    urls = _down_select_urls(
+        results,
+        url_ignore_substrings={"blocked.com"},
+        url_keep_substrings={"keep-me"},
+    )
+
+    assert urls == {
+        "https://blocked.com/keep-me",
+        "https://allowed.com/keep",
+    }
 
 
 def test_init_se():
@@ -72,7 +92,7 @@ async def test_single_se_search_bad_build():
     """Test that bad init of SE gives no results"""
     test_kwargs = {"google_cse_api_kwargs": {"dne_arg": "test_key"}}
     results = await _single_se_search("APIGoogleCSESearch", [""], None, None,
-                                      None, None, test_kwargs)
+                                      None, None, None, test_kwargs)
     assert results == set()
 
 
