@@ -1,0 +1,34 @@
+elm.web.document.MDDocument
+===========================
+
+.. currentmodule:: elm.web.document
+
+.. autoclass:: MDDocument
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~MDDocument.FILE_EXTENSION
+      ~MDDocument.MARKDOWN_COMMENT_RE
+      ~MDDocument.WRITE_KWARGS
+      ~MDDocument.empty
+      ~MDDocument.raw_pages
+      ~MDDocument.text
+   
+   
