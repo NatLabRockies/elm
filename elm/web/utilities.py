@@ -107,7 +107,7 @@ async def _check_redirect_safety(response):
         return
 
     if not redirect_url.startswith(("http://", "https://")):
-        redirect_url = urljoin(response.url, redirect_url)
+        redirect_url = urljoin(str(response.url), redirect_url)
 
     if not _is_safe_url(redirect_url):
         raise ValueError(f"Redirect target is not allowed: {redirect_url}")
