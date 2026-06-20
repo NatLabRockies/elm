@@ -309,6 +309,7 @@ class APISerperSearch(APISearchEngineLinkSearch):
 
         payload = {"q": query, "num": num_results}
         headers = {"X-API-KEY": self.api_key}
+        c_kwargs = {"verify": self.verify, "timeout": 120}
 
         async with httpx.AsyncClient(verify=self.verify) as client:
             response = await client.post(self._URL, headers=headers,
