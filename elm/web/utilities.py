@@ -97,7 +97,7 @@ def _is_safe_url(url):
         return False
 
 
-def _check_redirect_safety(response):
+async def _check_redirect_safety(response):
     """Validate each redirect target before following it."""
     if not response.is_redirect:
         return
