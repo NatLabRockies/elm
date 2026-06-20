@@ -316,6 +316,7 @@ class APISerperSearch(APISearchEngineLinkSearch):
             response = await client.post(self._URL, headers=headers,
                                          json=payload)
             response.raise_for_status()
+            await asyncio.sleep(1)
 
         results = response.json().get("organic", [])
         return format_search_results(self._SE_NAME, query, results,
