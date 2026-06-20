@@ -18,6 +18,7 @@ from elm.web.search.base import (PlaywrightSearchEngineLinkSearch,
 
 
 logger = logging.getLogger(__name__)
+_SERPER_SEMAPHORE = asyncio.Semaphore(50)  # default limit is 50 q per second
 
 
 class PlaywrightGoogleLinkSearch(PlaywrightSearchEngineLinkSearch):
@@ -309,11 +310,13 @@ class APISerperSearch(APISearchEngineLinkSearch):
 
         payload = {"q": query, "num": num_results}
         headers = {"X-API-KEY": self.api_key}
+        c_kwargs = {"verify": self.verify, "timeout": 120}
 
-        async with httpx.AsyncClient(verify=self.verify) as client:
+        async with httpx.AsyncClient(**c_kwargs) as client, _SERPER_SEMAPHORE:
             response = await client.post(self._URL, headers=headers,
                                          json=payload)
             response.raise_for_status()
+            await asyncio.sleep(1)
 
         results = response.json().get("organic", [])
         return format_search_results(self._SE_NAME, query, results,

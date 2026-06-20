@@ -4,10 +4,13 @@ import uuid
 import hashlib
 import logging
 import asyncio
+import socket
+import ipaddress
 from pathlib import Path
 from copy import deepcopy
 from random import randint, choice
 from contextlib import asynccontextmanager
+from urllib.parse import urlparse, urljoin
 
 import httpx
 from slugify import slugify
@@ -81,13 +84,66 @@ async def get_redirected_url(url, **kwargs):
         The final URL after following redirects, or the original URL if
         no redirects are found or an error occurs.
     """
+
     kwargs["follow_redirects"] = True
+    event_hooks = kwargs.setdefault("event_hooks", {})
+    response_hooks = list(event_hooks.get("response") or [])
+    response_hooks.append(_check_redirect_safety)
+    event_hooks["response"] = response_hooks
+
     try:
         async with httpx.AsyncClient(**kwargs) as client:
             response = await client.head(url)
             return str(response.url)
     except httpx.RequestError as e:
         return url
+
+
+async def _check_redirect_safety(response):
+    """Validate each redirect target before following it."""
+    if not response.is_redirect:
+        return
+
+    redirect_url = response.headers.get("location")
+    if not redirect_url:
+        return
+
+    if not redirect_url.startswith(("http://", "https://")):
+        redirect_url = urljoin(str(response.url), redirect_url)
+
+    if not _is_safe_url(redirect_url):
+        raise ValueError(f"Redirect target is not allowed: {redirect_url}")
+
+
+def _is_safe_url(url):
+    """Return whether a URL resolves to a globally routable address."""
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname
+
+        if not hostname:
+            return False
+
+        try:
+            ip = ipaddress.ip_address(hostname)
+        except ValueError:
+
+            try:
+                ip_str = socket.gethostbyname(hostname)
+                ip = ipaddress.ip_address(ip_str)
+            except (socket.gaierror, socket.herror):
+                return False
+
+        return ip.is_global and not (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        )
+    except Exception:
+        return False
 
 
 def clean_search_query(query):
