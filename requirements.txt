@@ -22,7 +22,7 @@ PyPDF2
 python-slugify
 rebrowser-playwright
 scipy
-scrapling
+scrapling<0.3
 tabulate
 tavily-python
 tiktoken
