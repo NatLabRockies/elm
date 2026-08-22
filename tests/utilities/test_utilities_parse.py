@@ -113,6 +113,9 @@ def test_format_html_tables():
     bad_table_text = SAMPLE_TABLE_TEXT + "\nBad table:\n<table></table>"
     assert format_html_tables(bad_table_text) == bad_table_text
 
+    empty_table_text = "Content before table\n<table></table>"
+    assert format_html_tables(empty_table_text) == empty_table_text
+
 
 def test_clean_headers():
     """Test the `clean_headers` function (basic execution)"""
