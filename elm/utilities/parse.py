@@ -127,7 +127,7 @@ def format_html_tables(text, **kwargs):
 
     try:
         dfs = _find_dfs(text)
-    except ValueError:
+    except (ValueError, IndexError):
         logger.error(
             "Error parsing text for tables! No replacement performed."
         )
