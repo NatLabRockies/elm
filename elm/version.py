@@ -2,4 +2,4 @@
 ELM version number
 """
 
-__version__ = "0.0.44"
+__version__ = "0.0.45"

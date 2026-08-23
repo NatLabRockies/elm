@@ -9,6 +9,7 @@ fake_useragent>=2.0.3
 google-api-python-client
 google-search-results
 html2text
+html5lib
 httpx
 langchain-text-splitters
 lxml
@@ -22,7 +23,7 @@ PyPDF2
 python-slugify
 rebrowser-playwright
 scipy
-scrapling
+scrapling<0.3
 tabulate
 tavily-python
 tiktoken

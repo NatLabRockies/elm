@@ -125,7 +125,13 @@ def format_html_tables(text, **kwargs):
     if not matches:
         return text
 
-    dfs = _find_dfs(text)
+    try:
+        dfs = _find_dfs(text)
+    except (ValueError, IndexError):
+        logger.error(
+            "Error parsing text for tables! No replacement performed."
+        )
+        return text
     if len(matches) != len(dfs):
         logger.error(
             "Found incompatible number of HTML (%d) and parsed (%d) tables! "

@@ -348,7 +348,7 @@ class PatchedSerpApiClient(SerpApiClient):
             return response
         except httpx.HTTPError as e:
             logger.error("fail: " + url)
-            if e.response is not None:
+            if hasattr(e, "response") and e.response is not None:
                 logger.error(e, e.response.status_code)
             else:
                 logger.error(e)
