@@ -550,6 +550,54 @@ class ELMWebsiteCrawler:
         cck.update(crawler_config_kwargs or {})
         self.config = CrawlerRunConfig(**cck)
 
+    async def run_with_timeout(self, base_url, crawl_timeout_s,
+                               termination_callback=None, on_result_hook=None):
+        """Crawl a website for documents of interest
+
+        Parameters
+        ----------
+        base_url : str
+            The base URL to start crawling from.
+        crawl_timeout_s : float, optional
+            A float representing the maximum time in seconds to allow
+            the crawl to run.
+        termination_callback : callable, optional
+            An async callable that takes a list of documents and returns
+            a boolean indicating whether to stop crawling. If ``None``,
+            the :meth:`ELMWebsiteCrawlingStrategy.found_enough_docs` is
+            used, which simply terminates when roughly a handful of
+            documents have been found. By default, ``None``.
+        on_result_hook : callable, optional
+            An async callable that is called every time a result is
+            found during the crawl. This can be used to perform
+            additional processing on each result or to monitor the crawl
+            progress. The callable should accept a single argument,
+            which is the crawl result object. If ``None``, no additional
+            processing is done on the results. By default, ``None``.
+
+        Returns
+        -------
+        CrawlOutcome
+            Object representing the outcome of the crawl, including the
+            status, any errors encountered, and the list of documents
+            found.
+        """
+
+        outcome = CrawlOutcome()
+        try:
+            async with asyncio.timeout(crawl_timeout_s):
+                await self._run_crawl(base_url, outcome, termination_callback,
+                                      on_result_hook=on_result_hook)
+        except TimeoutError:
+            outcome.status = "timeout"
+        except Exception as error:
+            outcome.status = "error"
+            outcome.error = error
+
+        outcome.log_completion()
+        outcome.documents.sort(key=lambda x: -1 * x.attrs[_SCORE_KEY])
+        return outcome
+
     async def run(self, base_url, termination_callback=None,
                   on_result_hook=None, return_c4ai_results=False):
         """Crawl a website for documents of interest
