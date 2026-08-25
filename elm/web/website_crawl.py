@@ -83,7 +83,64 @@ setTimeout(randomScroll, 500 + Math.random() * 1000);
 """
 
 
-class PeekablePriorityQueue(PriorityQueue):
+class CrawlOutcome:
+    """Helper class to track the outcome of a website crawl."""
+
+    def __init__(self):
+        self.documents = []
+        self.raw_results = []
+        self.visited_urls = set()
+        self.status = "in_progress"
+        self.error = None
+
+    def record_step(self, result):
+        """Record a step in the crawl process.
+
+        Parameters
+        ----------
+        result : object
+            The result object representing a step in the crawl process.
+            It should have at least a "url" attribute.
+        """
+        self.raw_results.append(result)
+        self.visited_urls.add(result.url)
+
+    def record_document(self, document):
+        """Record a document retrieved during the crawl process.
+
+        Parameters
+        ----------
+        document : object
+            The document object retrieved during the crawl process.
+        """
+        self.documents.append(document)
+
+
+    def log_completion(self):
+        logger.info("Crawl completion status: %s", self.status)
+        logger.info("Crawled %d pages", len(self.raw_results))
+        logger.info("Found %d potential documents", len(self.documents))
+        logger.debug("Average score: %.2f", self._compute_avg_score())
+
+        depth_counts = {}
+        for result in self.raw_results:
+            depth = result.metadata.get("depth", 0)
+            depth_counts[depth] = depth_counts.get(depth, 0) + 1
+
+        logger.debug("Pages crawled by depth:")
+        for depth, count in sorted(depth_counts.items()):
+            logger.debug(f"  Depth {depth}: {count} pages")
+
+    def _compute_avg_score(self):
+        """Compute the average score of the crawled results"""
+        if len(self.raw_results) <= 0:
+            return 0
+
+        return (sum(r.metadata.get('score', 0) for r in self.raw_results)
+                / len(self.raw_results))
+
+
+class PeekablePriorityQueue(asyncio.PriorityQueue):
     """A priority queue that allows peeking at the next item"""
 
     def peek(self):
