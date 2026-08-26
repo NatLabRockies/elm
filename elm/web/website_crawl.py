@@ -4,7 +4,7 @@
 """ELM Document retrieval from a website"""
 
 import logging
-from asyncio import PriorityQueue
+import asyncio
 from math import inf as infinity
 from contextlib import aclosing
 from functools import lru_cache
@@ -552,7 +552,7 @@ class ELMWebsiteCrawler:
 
     async def run_with_timeout(self, base_url, crawl_timeout_s,
                                termination_callback=None, on_result_hook=None):
-        """Crawl a website for documents of interest
+        """Crawl a website for documents of interest with a time limit
 
         Parameters
         ----------
@@ -638,8 +638,22 @@ class ELMWebsiteCrawler:
             `return_c4ai_results` is ``True``.
         """
 
-        results = []
-        out_docs = []
+        outcome = CrawlOutcome()
+        await self._run_crawl(base_url, outcome, termination_callback,
+                              on_result_hook=on_result_hook)
+
+        outcome.log_completion()
+        outcome.documents.sort(key=lambda x: -1 * x.attrs[_SCORE_KEY])
+
+        if return_c4ai_results:
+            return outcome.documents, outcome.raw_results
+
+        return outcome.documents
+
+    async def _run_crawl(self, base_url, outcome, termination_callback=None,
+                         on_result_hook=None):
+        """Run the crawl for the given base URL"""
+
         should_stop = (termination_callback
                        or ELMWebsiteCrawlingStrategy.found_enough_docs)
         page_count = 0
@@ -650,10 +664,13 @@ class ELMWebsiteCrawler:
                     page_count += 1
                     if page_count > self.page_limit:
                         logger.debug("Exiting crawl due to page limit")
-                        break
+                        outcome.status = "max_pages"
+                        return
+
                     if not result.success:
                         continue
-                    results.append(result)
+
+                    outcome.record_step(result)
                     logger.debug("Crawled %s", result.url)
                     if on_result_hook:
                         await on_result_hook(result)
@@ -670,32 +687,14 @@ class ELMWebsiteCrawler:
 
                     if await self.validator(doc):
                         logger.debug("Document passed validation check")
-                        out_docs.append(doc)
+                        outcome.record_document(doc)
 
-                    if await should_stop(out_docs):
+                    if await should_stop(outcome.documents):
                         logger.debug("Exiting crawl early")
-                        break
+                        outcome.status = "termination_callback"
+                        return
 
-        logger.info("Crawled %d pages", len(results))
-        logger.info("Found %d potential documents", len(out_docs))
-        logger.debug("Average score: %.2f", _compute_avg_score(results))
-
-        depth_counts = {}
-        for result in results:
-            depth = result.metadata.get("depth", 0)
-            depth_counts[depth] = depth_counts.get(depth, 0) + 1
-
-        logger.debug("Pages crawled by depth:")
-        for depth, count in sorted(depth_counts.items()):
-            logger.debug(f"  Depth {depth}: {count} pages")
-
-        if out_docs:
-            out_docs.sort(key=lambda x: -1 * x.attrs[_SCORE_KEY])
-
-        if return_c4ai_results:
-            return out_docs, results
-
-        return out_docs
+        outcome.status = "completed"
 
     async def _doc_from_result(self, result):
         """Get document instance from crawling result"""
@@ -705,10 +704,3 @@ class ELMWebsiteCrawler:
             return doc
 
         return await self.afl.fetch(result.url)
-
-
-def _compute_avg_score(results):
-    """Compute the average score of the crawled results"""
-    if len(results) <= 0:
-        return 0
-    return sum(r.metadata.get('score', 0) for r in results) / len(results)
