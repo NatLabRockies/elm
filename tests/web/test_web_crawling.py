@@ -6,7 +6,8 @@ from pathlib import Path
 import pytest
 
 from elm.ords.validation.content import possibly_mentions_wind
-from elm.web.website_crawl import ELMLinkScorer, ELMWebsiteCrawler
+from elm.web.website_crawl import (ELMLinkScorer, ELMWebsiteCrawler,
+                                   CrawlOutcome)
 from elm.web.file_loader import AsyncWebFileLoader
 
 
@@ -32,6 +33,7 @@ async def test_basic_website_crawl():
 
     out_docs = await crawler.run("https://www.elpasoco.com",
                                  termination_callback=found_enough_test_docs)
+    assert not isinstance(out_docs, CrawlOutcome)
     assert out_docs
 
 
