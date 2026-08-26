@@ -5,6 +5,7 @@ import json
 import random
 import asyncio
 import logging
+import re
 import requests
 import httpx
 from urllib.parse import quote
@@ -424,7 +425,12 @@ async def _navigate_to_se_url(page, se_url, timeout=90_000):
 
 def _clean_search_result_url(url):
     """Normalize a search result URL"""
-    return (url or "").replace("+", "%20")
+    url = (url or "").replace(r"\/", "/").replace("+", "%20")
+    return re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda match: chr(int(match.group(1), 16)),
+        url,
+    )
 
 
 def _format_url_results(se_name, query, urls, raw=False):

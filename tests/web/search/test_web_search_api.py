@@ -65,6 +65,17 @@ def test_format_search_results_raw():
     }]
 
 
+def test_format_search_results_decodes_json_escaped_urls():
+    """Normalize JSON-escaped URLs returned by search APIs"""
+    results = [{
+        "link": "https:\\/\\/www.daconoco.gov\\/Archive.aspx?ADID\\u003d1188"
+    }]
+
+    out = format_search_results("test_se", "query", results, "link")
+
+    assert out == ["https://www.daconoco.gov/Archive.aspx?ADID=1188"]
+
+
 def test_format_url_results_raw():
     """Test raw URL-only results still include URL keys"""
     out = _format_url_results("test_se", "query",
