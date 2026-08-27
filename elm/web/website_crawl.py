@@ -17,6 +17,7 @@ from crawl4ai.deep_crawling.filters import (FilterChain, URLPatternFilter,
                                             ContentTypeFilter, URLFilter)
 
 from elm.web.document import HTMLDocument
+from elm.web.utilities import clean_json_escaped_url
 
 
 logger = logging.getLogger(__name__)
@@ -344,6 +345,7 @@ class ELMWebsiteCrawlingStrategy(BestFirstCrawlingStrategy):
             if not url:
                 self.logger.debug("Link without href, skipping")
                 continue
+            url = clean_json_escaped_url(url)
             base_url = normalize_url_for_deep_crawl(url, source_url)
             if base_url in visited:
                 continue
@@ -654,6 +656,7 @@ class ELMWebsiteCrawler:
                          on_result_hook=None):
         """Run the crawl for the given base URL"""
 
+        base_url = clean_json_escaped_url(base_url)
         should_stop = (termination_callback
                        or ELMWebsiteCrawlingStrategy.found_enough_docs)
         page_count = 0
