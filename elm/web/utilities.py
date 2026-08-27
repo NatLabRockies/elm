@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """ELM Web Scraping utilities."""
+import re
 import uuid
 import hashlib
 import logging
@@ -65,6 +66,27 @@ BLOCK_RESOURCE_NAMES = [
     "googletagmanager",
     "lit.connatix",  # <- not sure about this one
 ]
+
+
+def clean_json_escaped_url(url):
+    """Decode JSON escape sequences in a URL.
+
+    Parameters
+    ----------
+    url : str
+        The URL string, possibly containing JSON escape sequences.
+
+    Returns
+    -------
+    str
+        The URL with JSON escape sequences decoded.
+    """
+    url = (url or "").replace(r"\/", "/")
+    return re.sub(
+        r"\\u([0-9a-fA-F]{4})",
+        lambda match: chr(int(match.group(1), 16)),
+        url,
+    )
 
 
 async def get_redirected_url(url, **kwargs):
