@@ -16,7 +16,8 @@ from serpapi.serp_api_client import SerpApiClient
 from rebrowser_playwright.async_api import async_playwright
 from playwright_stealth import Stealth
 
-from elm.web.utilities import PWKwargs, clean_search_query, pw_page
+from elm.web.utilities import (PWKwargs, clean_json_escaped_url,
+                               clean_search_query, pw_page)
 
 
 logger = logging.getLogger(__name__)
@@ -425,18 +426,13 @@ async def _navigate_to_se_url(page, se_url, timeout=90_000):
 
 def _clean_search_result_url(url):
     """Normalize a search result URL"""
-    url = (url or "").replace(r"\/", "/").replace("+", "%20")
-    return re.sub(
-        r"\\u([0-9a-fA-F]{4})",
-        lambda match: chr(int(match.group(1), 16)),
-        url,
-    )
+    return clean_json_escaped_url(url).replace("+", "%20")
 
 
 def _format_url_results(se_name, query, urls, raw=False):
     """Normalize URL-only search results into a consistent shape"""
     formatted_results = list(filter(None, (_clean_search_result_url(url)
-                                          for url in urls)))
+                                           for url in urls)))
     if not raw:
         return formatted_results
 
