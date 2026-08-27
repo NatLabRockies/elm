@@ -12,7 +12,8 @@ from warnings import warn
 from elm.web.file_loader import AsyncWebFileLoader
 from elm.web.search.bing import PlaywrightBingLinkSearch
 from elm.web.search.duckduckgo import (APIDuckDuckGoSearch,
-                                       PlaywrightDuckDuckGoLinkSearch)
+                                       PlaywrightDuckDuckGoLinkSearch,
+                                       SerpAPIDuckDuckGoSearch)
 from elm.web.search.dux import DuxDistributedGlobalSearch
 from elm.web.search.google import (APIGoogleCSESearch, APISerperSearch,
                                    SerpAPIGoogleSearch,
@@ -32,6 +33,8 @@ _SE_OPT = namedtuple('_SE_OPT', ['se_class', 'uses_browser', 'kwg_key_name'])
 SEARCH_ENGINE_OPTIONS = {
     "APIDuckDuckGoSearch": _SE_OPT(APIDuckDuckGoSearch, False,
                                    "ddg_api_kwargs"),
+    "SerpAPIDuckDuckGoSearch": _SE_OPT(SerpAPIDuckDuckGoSearch, False,
+                                       "ddg_serpapi_kwargs"),
     "APIGoogleCSESearch": _SE_OPT(APIGoogleCSESearch, False,
                                   "google_cse_api_kwargs"),
     "APISerperSearch": _SE_OPT(APISerperSearch, False,

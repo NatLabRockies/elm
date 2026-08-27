@@ -243,14 +243,14 @@ class APIGoogleCSESearch(APISearchEngineLinkSearch):
 
 
 class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
-    """Search the google for links using the SerpAPI service"""
+    """Search Google for links using the SerpAPI service"""
 
     _SE_NAME = "SerpAPI (Google)"
 
     API_KEY_VAR = "SERPAPI_KEY"
     """Environment variable that should contain the SerpAPI key"""
 
-    def __init__(self, api_key=None, verify=False):
+    def __init__(self, api_key=None, verify=False, param_kwargs=None):
         """
 
         Parameters
@@ -262,15 +262,19 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
         verify : bool, default=False
             Option to use SSL verification when making request to API
             endpoint. By default, ``False``.
+        param_kwargs : dict, optional
+            Additional parameters to be passed to the SerpAPI client.
+            By default, ``None``.
         """
         super().__init__(api_key=api_key)
         self.verify = verify
+        self.param_kwargs = param_kwargs or {}
 
-    async def _search(self, query, num_results=10, raw=False, **param_kwargs):
+    async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
         params = {"q": query, "hl": "en", "gl": "us", "api_key": self.api_key}
-        params.update(param_kwargs)
+        params.update(self.param_kwargs)
 
         client = PatchedSerpApiClient(params, engine="google",
                                       verify=self.verify)
