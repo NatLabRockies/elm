@@ -1,0 +1,33 @@
+elm.base
+========
+
+.. automodule:: elm.base
+
+   
+   
+   
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      ApiBase
+      ApiQueue
+      ClientEmbeddingsApiQueue
+   
+   
+
+   
+   
+   
+
+
+

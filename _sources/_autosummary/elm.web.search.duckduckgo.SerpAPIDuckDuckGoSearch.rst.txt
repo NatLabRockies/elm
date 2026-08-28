@@ -1,0 +1,30 @@
+elm.web.search.duckduckgo.SerpAPIDuckDuckGoSearch
+=================================================
+
+.. currentmodule:: elm.web.search.duckduckgo
+
+.. autoclass:: SerpAPIDuckDuckGoSearch
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SerpAPIDuckDuckGoSearch.results
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SerpAPIDuckDuckGoSearch.API_KEY_VAR
+   
+   

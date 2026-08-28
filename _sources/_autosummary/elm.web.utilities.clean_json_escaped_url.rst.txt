@@ -1,0 +1,6 @@
+elm.web.utilities.clean\_json\_escaped\_url
+===========================================
+
+.. currentmodule:: elm.web.utilities
+
+.. autofunction:: clean_json_escaped_url

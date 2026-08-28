@@ -1,0 +1,41 @@
+elm.web.search.base
+===================
+
+.. automodule:: elm.web.search.base
+
+   
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      format_search_results
+   
+   
+
+   
+   
+   .. rubric:: Classes
+
+   .. autosummary::
+      :toctree:
+      :template: custom-class-template.rst
+   
+      APISearchEngineLinkSearch
+      PatchedSerpApiClient
+      PlaywrightSearchEngineLinkSearch
+      SearchEngineLinkSearch
+   
+   
+
+   
+   
+   
+
+
+

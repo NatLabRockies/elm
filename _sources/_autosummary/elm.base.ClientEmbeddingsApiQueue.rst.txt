@@ -1,0 +1,32 @@
+elm.base.ClientEmbeddingsApiQueue
+=================================
+
+.. currentmodule:: elm.base
+
+.. autoclass:: ClientEmbeddingsApiQueue
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~ClientEmbeddingsApiQueue.collect_jobs
+      ~ClientEmbeddingsApiQueue.run
+      ~ClientEmbeddingsApiQueue.submit_jobs
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~ClientEmbeddingsApiQueue.waiting_on
+   
+   

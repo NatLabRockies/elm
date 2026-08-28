@@ -1,0 +1,6 @@
+elm.web.search.base.format\_search\_results
+===========================================
+
+.. currentmodule:: elm.web.search.base
+
+.. autofunction:: format_search_results
