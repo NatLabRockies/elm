@@ -21,7 +21,7 @@ from elm.web.search.google import (APIGoogleCSESearch, APISerperSearch,
                                    PlaywrightGoogleCSELinkSearch,
                                    PlaywrightGoogleLinkSearch)
 from elm.web.search.tavily import APITavilySearch
-from elm.web.search.yahoo import PlaywrightYahooLinkSearch
+from elm.web.search.yahoo import PlaywrightYahooLinkSearch, SerpAPIYahooSearch
 from elm.exceptions import ELMKeyError, ELMInputError
 
 
@@ -42,6 +42,8 @@ SEARCH_ENGINE_OPTIONS = {
     "SerpAPIGoogleSearch": _SE_OPT(SerpAPIGoogleSearch, False,
                                    "google_serpapi_kwargs"),
     "APITavilySearch": _SE_OPT(APITavilySearch, False, "tavily_api_kwargs"),
+    "SerpAPIYahooSearch": _SE_OPT(SerpAPIYahooSearch, False,
+                                  "yahoo_serpapi_kwargs"),
     "CamoufoxGoogleLinkSearch": _SE_OPT(CamoufoxGoogleLinkSearch, True,
                                         "cf_google_se_kwargs"),
     "DuxDistributedGlobalSearch": _SE_OPT(DuxDistributedGlobalSearch, False,
