@@ -194,6 +194,129 @@ async def web_search_links_as_docs(queries, search_engines=_DEFAULT_SE,
     return docs
 
 
+async def search_with_fallback_with_attrs(queries, search_engines=_DEFAULT_SE,
+                                          num_urls=None,
+                                          url_ignore_substrings=None,
+                                          url_keep_substrings=None,
+                                          browser_semaphore=None,
+                                          task_name=None,
+                                          use_fallback_per_query=True,
+                                          **kwargs):
+    """Retrieve search query URLs using multiple search engines if needed
+
+    Parameters
+    ----------
+    queries : collection of str
+        Collection of strings representing google queries. Documents for
+        the top `num_urls` google search results (from all of these
+        queries _combined_ will be returned from this function.
+    search_engines : iterable of str
+        Ordered collection of search engine names to attempt for web
+        search. If the first search engine in the list returns a set
+        of URLs, then iteration will end and documents for each URL will
+        be returned. Otherwise, the next engine in this list will be
+        used to run the web search. If this also fails, the next engine
+        is used and so on. If all web searches fail, an empty list is
+        returned. See :obj:`~elm.web.search.run.SEARCH_ENGINE_OPTIONS`
+        for supported search engine options.
+        By default, ``("PlaywrightGoogleLinkSearch", )``.
+    num_urls : int, optional
+        Number of unique top Google search result to return as docs. The
+        google search results from all queries are interleaved and the
+        top `num_urls` unique URL's are downloaded as docs. If this
+        number is less than ``len(queries)``, some of your queries may
+        not contribute to the final output. By default, ``None``, which
+        sets ``num_urls = 3 * len(queries)``.
+    url_ignore_substrings : iterable of str, optional
+        Optional URL components to blacklist. For example, supplying
+        `url_ignore_substrings={"wikipedia.org"}` will ignore all URLs
+        that contain "wikipedia.org". Substrings are applied
+        case-insensitively. By default, ``None``.
+    url_keep_substrings : list of str, optional
+        URL substrings that should be included in search results even if
+        they match an ignore substring. Substrings are applied
+        case-insensitively. By default, ``None``.
+    browser_semaphore : :class:`asyncio.Semaphore`, optional
+        Semaphore instance that can be used to limit the number of
+        playwright browsers open concurrently. If ``None``, no limits
+        are applied. By default, ``None``.
+    task_name : str, optional
+        Optional task name to use in :func:`asyncio.create_task`.
+        By default, ``None``.
+    use_fallback_per_query : bool, default=True
+        Option to use the fallback list of search engines on a per-query
+        basis. This means if a single query fails with one search
+        engine, the fallback search engines will be attempted for that
+        query. If this input is ``False``, the fallback search engines
+        are only used if *all* search queries fail for a single search
+        engine. By default, ``True``.
+    **kwargs
+        Keyword-argument pairs to initialize search engines. This input
+        can include and any/all of the following keywords:
+
+            - ddg_api_kwargs
+            - google_cse_api_kwargs
+            - google_serper_api_kwargs
+            - google_serpapi_kwargs
+            - tavily_api_kwargs
+            - ddgs_kwargs
+            - cf_google_se_kwargs
+            - pw_bing_se_kwargs
+            - pw_ddg_se_kwargs
+            - pw_google_cse_kwargs
+            - pw_google_se_kwargs
+            - pw_yahoo_se_kwargs
+            - pw_launch_kwargs
+
+        Each of these inputs should be a dictionary with
+        keyword-argument pairs that you can use to initialize the search
+        engines in the `search_engines` input. If ``pw_launch_kwargs``
+        is detected, it will be added to the kwargs for all of the
+        PLaywright-based search engines so that you do not have to
+        repeatedly specify the launch parameters. For example, you may
+        specify ``pw_launch_kwargs={"headless": False}`` to
+        have all Playwright-based searches show the browser and _also_
+        specify ``google_serper_api_kwargs={"api_key": "..."}`` to
+        specify the API key for the Google Serper search.
+
+    Returns
+    -------
+    list of dict
+        Selected URL records with their ``"url"`` and
+        ``"search_engines"`` values (empty if search failed).
+
+    Raises
+    ------
+    ELMInputError
+        If `search_engines` input is empty.
+    """
+    num_urls = num_urls or 3 * len(queries)
+    if len(search_engines) < 1:
+        msg = f"Must provide at least one search engine! Got {search_engines=}"
+        logger.error(msg)
+        raise ELMInputError(msg)
+
+    ignore, kwargs = _handle_old_ignore_key(url_ignore_substrings, kwargs)
+    if use_fallback_per_query:
+        results = await _multi_se_search(search_engines, queries, num_urls,
+                                         ignore, url_keep_substrings,
+                                         browser_semaphore, task_name, kwargs)
+        if results:
+            return results
+    else:
+        for se_name in search_engines:
+            results = await _single_se_search(se_name, queries, num_urls,
+                                              ignore, url_keep_substrings,
+                                              browser_semaphore, task_name,
+                                              kwargs, raw=False)
+            if results:
+                return results
+
+    logger.warning("No web results found using %d search engines: %r",
+                   len(search_engines), search_engines)
+    return []
+
+
 async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
                                num_urls=None, url_ignore_substrings=None,
                                url_keep_substrings=None,
@@ -286,31 +409,14 @@ async def search_with_fallback(queries, search_engines=_DEFAULT_SE,
     ELMInputError
         If `search_engines` input is empty.
     """
-    num_urls = num_urls or 3 * len(queries)
-    if len(search_engines) < 1:
-        msg = f"Must provide at least one search engine! Got {search_engines=}"
-        logger.error(msg)
-        raise ELMInputError(msg)
-
-    ignore, kwargs = _handle_old_ignore_key(url_ignore_substrings, kwargs)
-    if use_fallback_per_query:
-        urls = await _multi_se_search(search_engines, queries, num_urls,
-                                      ignore, url_keep_substrings,
-                                      browser_semaphore, task_name, kwargs)
-        if urls:
-            return urls
-    else:
-        for se_name in search_engines:
-            urls = await _single_se_search(se_name, queries, num_urls,
-                                           ignore, url_keep_substrings,
-                                           browser_semaphore, task_name,
-                                           kwargs, raw=False)
-            if urls:
-                return urls
-
-    logger.warning("No web results found using %d search engines: %r",
-                   len(search_engines), search_engines)
-    return set()
+    results = await search_with_fallback_with_attrs(
+        queries, search_engines=search_engines, num_urls=num_urls,
+        url_ignore_substrings=url_ignore_substrings,
+        url_keep_substrings=url_keep_substrings,
+        browser_semaphore=browser_semaphore, task_name=task_name,
+        use_fallback_per_query=use_fallback_per_query, **kwargs
+    )
+    return {result["url"] for result in results}
 
 
 async def search_all_se(queries, search_engines=_DEFAULT_SE,
