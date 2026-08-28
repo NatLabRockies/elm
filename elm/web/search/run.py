@@ -737,6 +737,8 @@ def _validate_se_name(se_name):
         logger.error(msg)
         raise ELMKeyError(msg)
 
+    return SEARCH_ENGINE_OPTIONS[se_name].se_class._SE_NAME
+
 
 def _handle_old_ignore_key(url_ignore_substrings, kwargs):
     """Handle old input gracefully"""
