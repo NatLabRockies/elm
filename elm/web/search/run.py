@@ -576,14 +576,14 @@ async def _single_se_search(se_name, queries, num_urls, url_ignore_substrings,
                             url_keep_substrings, browser_sem, task_name,
                             kwargs, raw=False):
     """Search for links using a single search engine"""
-    _validate_se_name(se_name)
+    se_name_out = _validate_se_name(se_name)
     logger.debug("Searching web using %r", se_name)
     links = await _run_search(se_name, queries, browser_sem, task_name,
                               kwargs, raw)
     if raw:
         return [link[0] for link in links]
-    paired_results = [(results[0], se_name) for results in links]
-    return _down_select_urls(paired_results, [se_name], num_urls=num_urls,
+    paired_results = [(results[0], se_name_out) for results in links]
+    return _down_select_urls(paired_results, [se_name_out], num_urls=num_urls,
                              url_ignore_substrings=url_ignore_substrings,
                              url_keep_substrings=url_keep_substrings)
 
@@ -593,8 +593,10 @@ async def _multi_se_search(search_engines, queries, num_urls,
                            browser_sem, task_name, kwargs):
     outputs = {query: ([], None) for query in queries}
     remaining_queries = list(queries)
+    ordered_se_names_out = []
     for se_name in search_engines:
-        _validate_se_name(se_name)
+        se_name_out = _validate_se_name(se_name)
+        ordered_se_names_out.append(se_name_out)
 
         logger.debug("Searching web using %r", se_name)
         links = await _run_search(se_name, remaining_queries, browser_sem,
@@ -606,7 +608,7 @@ async def _multi_se_search(search_engines, queries, num_urls,
             if not se_result or not se_result[0]:
                 failed_queries.append(query)
                 continue
-            outputs[query] = (se_result[0], se_name)
+            outputs[query] = (se_result[0], se_name_out)
 
         remaining_queries = failed_queries
         logger.trace("Remaining queries to search: %r", remaining_queries)
@@ -614,7 +616,7 @@ async def _multi_se_search(search_engines, queries, num_urls,
         if not remaining_queries:
             break
 
-    return _down_select_urls(outputs.values(), search_engines,
+    return _down_select_urls(outputs.values(), ordered_se_names_out,
                              num_urls=num_urls,
                              url_ignore_substrings=url_ignore_substrings,
                              url_keep_substrings=url_keep_substrings)
