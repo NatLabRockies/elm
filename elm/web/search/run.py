@@ -578,7 +578,8 @@ async def _single_se_search(se_name, queries, num_urls, url_ignore_substrings,
                               kwargs, raw)
     if raw:
         return [link[0] for link in links]
-    return _down_select_urls(links, num_urls=num_urls,
+    paired_results = [(results[0], se_name) for results in links]
+    return _down_select_urls(paired_results, [se_name], num_urls=num_urls,
                              url_ignore_substrings=url_ignore_substrings,
                              url_keep_substrings=url_keep_substrings)
 
@@ -586,8 +587,7 @@ async def _single_se_search(se_name, queries, num_urls, url_ignore_substrings,
 async def _multi_se_search(search_engines, queries, num_urls,
                            url_ignore_substrings, url_keep_substrings,
                            browser_sem, task_name, kwargs):
-    """Search for links using one or more search engines as fallback"""
-    outputs = {q: None for q in queries}
+    outputs = {query: ([], None) for query in queries}
     remaining_queries = list(queries)
     for se_name in search_engines:
         _validate_se_name(se_name)
@@ -598,11 +598,11 @@ async def _multi_se_search(search_engines, queries, num_urls,
         logger.trace("Links: %r", links)
 
         failed_queries = []
-        for q, se_result in zip(remaining_queries, links):
+        for query, se_result in zip(remaining_queries, links):
             if not se_result or not se_result[0]:
-                failed_queries.append(q)
+                failed_queries.append(query)
                 continue
-            outputs[q] = se_result
+            outputs[query] = (se_result[0], se_name)
 
         remaining_queries = failed_queries
         logger.trace("Remaining queries to search: %r", remaining_queries)
@@ -610,9 +610,8 @@ async def _multi_se_search(search_engines, queries, num_urls,
         if not remaining_queries:
             break
 
-    links = [link or [[]] for link in outputs.values()]
-
-    return _down_select_urls(links, num_urls=num_urls,
+    return _down_select_urls(outputs.values(), search_engines,
+                             num_urls=num_urls,
                              url_ignore_substrings=url_ignore_substrings,
                              url_keep_substrings=url_keep_substrings)
 
@@ -679,15 +678,15 @@ def _init_se(se_name, kwargs):
     return se_class(**init_kwargs), uses_browser
 
 
-def _down_select_urls(search_results, num_urls=5, url_ignore_substrings=None,
-                      url_keep_substrings=None):
-    """Select the top N URLs"""
+def _down_select_urls(search_results, search_engines, num_urls=5,
+                      url_ignore_substrings=None, url_keep_substrings=None):
+    """Select top URLs and associate each with its source search engines"""
     url_ignore_substrings = _as_set(url_ignore_substrings)
     url_keep_substrings = _as_set(url_keep_substrings)
-    all_urls = chain.from_iterable(zip_longest(*[results[0]
-                                                 for results
-                                                 in search_results]))
-    urls = set()
+    all_urls = chain.from_iterable(zip_longest(*[
+        results for results, __ in search_results
+    ]))
+    ordered_selected_urls = []
     for url in all_urls:
         if not url:
             continue
@@ -697,11 +696,26 @@ def _down_select_urls(search_results, num_urls=5, url_ignore_substrings=None,
         if not is_whitelisted and is_blacklisted:
             continue
 
-        urls.add(url)
-        if len(urls) == num_urls:
+        if url in ordered_selected_urls:
+            continue
+        if len(ordered_selected_urls) == num_urls:
             break
+        ordered_selected_urls.append(url)
 
-    return urls
+    engine_priority = {engine: index
+                       for index, engine in enumerate(search_engines)}
+    results_by_url = {url: set() for url in ordered_selected_urls}
+    for result, se_name in search_results:
+        if se_name is None:
+            continue
+        for url in result:
+            if url in results_by_url:
+                results_by_url[url].add(se_name)
+
+    return [{"url": url,
+             "search_engines": sorted(results_by_url[url],
+                                      key=engine_priority.__getitem__)}
+            for url in ordered_selected_urls]
 
 
 def _as_set(user_input):
