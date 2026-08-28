@@ -10,7 +10,7 @@ from contextlib import AsyncExitStack
 from warnings import warn
 
 from elm.web.file_loader import AsyncWebFileLoader
-from elm.web.search.bing import PlaywrightBingLinkSearch
+from elm.web.search.bing import PlaywrightBingLinkSearch, SerpAPIBingSearch
 from elm.web.search.duckduckgo import (APIDuckDuckGoSearch,
                                        PlaywrightDuckDuckGoLinkSearch,
                                        SerpAPIDuckDuckGoSearch)
@@ -42,6 +42,8 @@ SEARCH_ENGINE_OPTIONS = {
     "SerpAPIGoogleSearch": _SE_OPT(SerpAPIGoogleSearch, False,
                                    "google_serpapi_kwargs"),
     "APITavilySearch": _SE_OPT(APITavilySearch, False, "tavily_api_kwargs"),
+    "SerpAPIBingSearch": _SE_OPT(SerpAPIBingSearch, False,
+                                     "bing_serpapi_kwargs"),
     "SerpAPIYahooSearch": _SE_OPT(SerpAPIYahooSearch, False,
                                   "yahoo_serpapi_kwargs"),
     "CamoufoxGoogleLinkSearch": _SE_OPT(CamoufoxGoogleLinkSearch, True,
