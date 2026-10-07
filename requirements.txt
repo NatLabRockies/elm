@@ -1,6 +1,7 @@
 openai>=1.1.0
 aiohttp
 beautifulsoup4
+browserforge>=1.2.1,<2
 camoufox
 click
 crawl4ai>=0.8.6
