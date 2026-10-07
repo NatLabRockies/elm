@@ -52,7 +52,8 @@ class SerpAPIBingSearch(APISearchEngineLinkSearch):
     API_KEY_VAR = "SERPAPI_KEY"
     """Environment variable that should contain the SerpAPI key"""
 
-    def __init__(self, api_key=None, verify=False, param_kwargs=None):
+    def __init__(self, api_key=None, verify=False, param_kwargs=None,
+                 timeout=120):
         """
 
         Parameters
@@ -67,10 +68,14 @@ class SerpAPIBingSearch(APISearchEngineLinkSearch):
         param_kwargs : dict, optional
             Additional parameters to be passed to the SerpAPI client.
             By default, ``None``.
+        timeout : int, optional
+            Timeout for the SerpAPI client in seconds.
+            By default, ``120``.
         """
         super().__init__(api_key=api_key)
         self.verify = verify
         self.param_kwargs = param_kwargs or {}
+        self.timeout = timeout
 
     async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
@@ -79,6 +84,7 @@ class SerpAPIBingSearch(APISearchEngineLinkSearch):
         params.update(self.param_kwargs)
 
         client = PatchedSerpApiClient(params, engine="bing",
+                                      timeout=self.timeout,
                                       verify=self.verify)
         results = await client.async_get_dict()
         results = (results or {}).get("organic_results", [])
