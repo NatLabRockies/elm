@@ -1,0 +1,6 @@
+elm.web.search.run.search\_with\_fallback\_with\_attrs
+======================================================
+
+.. currentmodule:: elm.web.search.run
+
+.. autofunction:: search_with_fallback_with_attrs
