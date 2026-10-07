@@ -300,9 +300,26 @@ class APISearchEngineLinkSearch(SearchEngineLinkSearch):
 class PatchedSerpApiClient(SerpApiClient):
     """SerpApiClient patched to allow bypassing of SSL verification"""
 
-    def __init__(self, params_dict, engine=None, timeout=60000, verify=True):
+    def __init__(self, params_dict, engine=None, timeout=120, verify=True):
+        """
+
+        Parameters
+        ----------
+        params_dict : dict
+            Dictionary of parameters to be passed to the SerpAPI client.
+        engine : str, optional
+            Search engine to use with the SerpAPI client.
+            By default, ``None``.
+        timeout : int, optional
+            Timeout for the SerpAPI client in seconds.
+            By default, ``120``.
+        verify : bool, default=True
+            Option to use SSL verification when making request to API
+            endpoint. By default, ``True``.
+
+        """
         super().__init__(params_dict=params_dict, engine=engine,
-                         timeout=timeout)
+                         timeout=timeout * 1000)
         self.verify = verify
 
     def get_response(self, path='/search'):
