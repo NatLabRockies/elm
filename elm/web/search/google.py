@@ -278,7 +278,8 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
     async def _search(self, query, num_results=10, raw=False):
         """Search web for links related to a query"""
 
-        params = {"q": query, "hl": "en", "gl": "us", "api_key": self.api_key}
+        params = {"q": query, "hl": "en", "gl": "us", "api_key": self.api_key,
+                  "google_domain": "google.com"}
         params.update(self.param_kwargs)
 
         client = PatchedSerpApiClient(params, engine="google",
