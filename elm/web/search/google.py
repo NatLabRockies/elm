@@ -290,6 +290,55 @@ class SerpAPIGoogleSearch(APISearchEngineLinkSearch):
                                      url_key="link", raw=raw)[:num_results]
 
 
+class SerpAPIGoogleLightSearch(APISearchEngineLinkSearch):
+    """Search Google Light for links using the SerpAPI service"""
+
+    _SE_NAME = "SerpAPI (Google Light)"
+
+    API_KEY_VAR = "SERPAPI_KEY"
+    """Environment variable that should contain the SerpAPI key"""
+
+    def __init__(self, api_key=None, verify=False, param_kwargs=None,
+                 timeout=120):
+        """
+
+        Parameters
+        ----------
+        api_key : str, optional
+            API key for serper search API. If ``None``, will look up the
+            API key using the ``"SERPAPI_KEY"`` environment variable.
+            By default, ``None``.
+        verify : bool, default=False
+            Option to use SSL verification when making request to API
+            endpoint. By default, ``False``.
+        param_kwargs : dict, optional
+            Additional parameters to be passed to the SerpAPI client.
+            By default, ``None``.
+        timeout : int, optional
+            Timeout for the SerpAPI client in seconds.
+            By default, ``120``.
+        """
+        super().__init__(api_key=api_key)
+        self.verify = verify
+        self.param_kwargs = param_kwargs or {}
+        self.timeout = timeout
+
+    async def _search(self, query, num_results=10, raw=False):
+        """Search web for links related to a query"""
+
+        params = {"q": query, "hl": "en", "gl": "us", "api_key": self.api_key,
+                  "google_domain": "google.com"}
+        params.update(self.param_kwargs)
+
+        client = PatchedSerpApiClient(params, engine="google_light",
+                                      timeout=self.timeout,
+                                      verify=self.verify)
+        results = await client.async_get_dict()
+        results = (results or {}).get("organic_results", [])
+        return format_search_results(self._SE_NAME, query, results,
+                                     url_key="link", raw=raw)[:num_results]
+
+
 class APISerperSearch(APISearchEngineLinkSearch):
     """Search the web for links using the Google Serper API"""
 
