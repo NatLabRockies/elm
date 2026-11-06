@@ -1,0 +1,30 @@
+elm.web.search.bing.SerpAPIBingSearch
+=====================================
+
+.. currentmodule:: elm.web.search.bing
+
+.. autoclass:: SerpAPIBingSearch
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SerpAPIBingSearch.results
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SerpAPIBingSearch.API_KEY_VAR
+   
+   

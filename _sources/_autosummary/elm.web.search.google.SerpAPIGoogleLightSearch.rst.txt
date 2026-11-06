@@ -1,0 +1,30 @@
+elm.web.search.google.SerpAPIGoogleLightSearch
+==============================================
+
+.. currentmodule:: elm.web.search.google
+
+.. autoclass:: SerpAPIGoogleLightSearch
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SerpAPIGoogleLightSearch.results
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SerpAPIGoogleLightSearch.API_KEY_VAR
+   
+   
