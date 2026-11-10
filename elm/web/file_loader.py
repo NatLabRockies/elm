@@ -179,6 +179,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         browser_semaphore=None,
         use_scrapling_stealth=False,
         num_pw_html_retries=3,
+        on_response_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -246,6 +247,11 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             attempts and retrieval success. Note that the minimum number
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
+        on_response_hook : callable, optional
+            Coroutine function called with every HTTP response received
+            while fetching content. See
+            :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
+            details. By default, ``None``.
         """
         super().__init__(file_cache_coroutine=file_cache_coroutine)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
@@ -253,7 +259,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.content_fetcher = AsyncFetchWithRetry(
             header_template=header_template, verify_ssl=verify_ssl,
-            aget_kwargs=aget_kwargs)
+            aget_kwargs=aget_kwargs, on_response_hook=on_response_hook)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
             html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
@@ -292,7 +298,8 @@ class AsyncFetchWithRetry:
     """Loader for fetching content from the web with retry attempts"""
 
     def __init__(self, header_template=None, verify_ssl=True,
-                 aget_kwargs=None, client_kwargs=None):
+                 aget_kwargs=None, client_kwargs=None,
+                 on_response_hook=None):
         """
 
         Parameters
@@ -307,7 +314,22 @@ class AsyncFetchWithRetry:
         aget_kwargs : dict, optional
             Other kwargs to pass to :meth:`aiohttp.ClientSession.get`.
             By default, ``None``.
+        client_kwargs : dict, optional
+            Other kwargs to pass to :class:`aiohttp.ClientSession`.
+            By default, ``None``.
+        on_response_hook : callable, optional
+            Coroutine function called with every HTTP response received,
+            including error responses and each retry. It is awaited as
+            ``on_response_hook(url, response, body)``, where `url` is
+            the URL passed to :meth:`fetch`, `response` is the
+            :class:`aiohttp.ClientResponse` (status, headers, final URL,
+            and redirect history), and `body` is the response content in
+            bytes. This is the only place that information is available,
+            since :meth:`fetch` returns just the content. It can also be
+            set after initialization via the attribute of the same name.
+            By default, ``None``.
         """
+        self.on_response_hook = on_response_hook
         self.get_kwargs = {
             "headers": _header_from_template(header_template),
             "ssl": None if verify_ssl else False,
@@ -351,6 +373,8 @@ class AsyncFetchWithRetry:
         """Fetch content from URL with several retry attempts"""
         async with session.get(url, **self.get_kwargs) as response:
             body = await response.read()
+            if self.on_response_hook is not None:
+                await self.on_response_hook(url, response, body)
             headers = response.headers
             ct = response.content_type.casefold()
             charset = response.charset or 'utf-8'

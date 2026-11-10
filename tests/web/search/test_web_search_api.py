@@ -163,5 +163,57 @@ async def test_basic_search_query(queries, se):
         assert all("+" not in link for link in results)
 
 
+@pytest.mark.asyncio
+async def test_search_hook_reports_results_and_errors():
+    """Test the search hook is called for successful and failed searches"""
+
+    class MockSearchEngine(SearchEngineLinkSearch):
+        """MockSearchEngine"""
+
+        _SE_NAME = "mock"
+
+        async def _search(self, query, num_results=10, raw=False):
+            if query == "bad":
+                raise TimeoutError("too slow")
+            return [query]
+
+    calls = []
+
+    async def hook(**kwargs):
+        calls.append(kwargs)
+
+    search_engine = MockSearchEngine()
+    search_engine.on_search_hook = hook
+
+    assert await search_engine.results("good", "bad", num_results=3) == [
+        ["good"], []
+    ]
+
+    by_query = {call["query"]: call for call in calls}
+    assert set(by_query) == {"good", "bad"}
+    assert by_query["good"]["results"] == ["good"]
+    assert by_query["good"]["error"] is None
+    assert by_query["bad"]["results"] is None
+    assert isinstance(by_query["bad"]["error"], TimeoutError)
+    for call in calls:
+        assert call["engine"] is search_engine
+        assert call["num_results"] == 3
+        assert call["seconds"] >= 0
+
+
+@pytest.mark.asyncio
+async def test_search_without_hook_is_unchanged():
+    """Test searches run as before when no search hook is set"""
+
+    class MockSearchEngine(SearchEngineLinkSearch):
+        """MockSearchEngine"""
+
+        async def _search(self, query, num_results=10, raw=False):
+            raise TimeoutError("too slow")
+
+    assert MockSearchEngine.on_search_hook is None
+    assert await MockSearchEngine().results("query") == [[]]
+
+
 if __name__ == "__main__":
     pytest.main(["-q", "--show-capture=all", Path(__file__), "-rapP"])

@@ -6,6 +6,7 @@ import random
 import asyncio
 import logging
 import re
+import time
 import requests
 import httpx
 from urllib.parse import quote
@@ -27,6 +28,18 @@ class SearchEngineLinkSearch(ABC):
     """Abstract class to retrieve links for a query using a search engine"""
 
     _SE_NAME = "<unknown se>"
+
+    on_search_hook = None
+    """Optional coroutine function called after every search attempt
+
+    It is awaited once per query, whether the search returned results or
+    raised an error, with the keyword arguments ``engine`` (this
+    instance), ``query``, ``num_results``, ``results`` (``None`` if the
+    search failed), ``error`` (the exception, or ``None``), and
+    ``seconds`` (how long the attempt took). It can be used to record
+    what each search engine returned, which is otherwise lost once
+    results from several queries and engines are merged.
+    """
 
     async def results(self, *queries, num_results=10, raw=False):
         """Retrieve links for the first `num_results` of each query
@@ -82,14 +95,32 @@ class SearchEngineLinkSearch(ABC):
 
     async def _skip_exc_search(self, query, num_results=10, raw=False):
         """Perform search while ignoring errors"""
+        started = time.monotonic()
         try:
-            return await self._search(query, num_results=num_results, raw=raw)
+            results = await self._search(query, num_results=num_results,
+                                         raw=raw)
         except KeyboardInterrupt:
             raise
         except Exception as e:
             msg = "Could not complete search for query=%r\nGot error type: %r"
             logger.exception(msg, query, type(e))
+            await self._call_search_hook(query, num_results, started, error=e)
             return []
+
+        await self._call_search_hook(query, num_results, started,
+                                     results=results)
+        return results
+
+    async def _call_search_hook(self, query, num_results, started,
+                                results=None, error=None):
+        """Report a finished search attempt to the hook, if there is one"""
+        if self.on_search_hook is None:
+            return
+
+        await self.on_search_hook(engine=self, query=query,
+                                  num_results=num_results, results=results,
+                                  error=error,
+                                  seconds=time.monotonic() - started)
 
     async def _move_mouse(self, page):
         """Simulate mouse movement"""

@@ -215,5 +215,31 @@ async def test_async_local_file_loader_basic_pdf():
     assert "cache_fn" not in doc.attrs
 
 
+@pytest.mark.asyncio
+async def test_async_file_loader_response_hook(monkeypatch):
+    """Test the response hook receives each fetched URL's response"""
+
+    monkeypatch.setattr(
+        aiohttp.ClientSession,
+        "get",
+        patched_get,
+        raising=True,
+    )
+
+    seen = []
+
+    async def hook(url, response, body):
+        seen.append((url, response.content_type, len(body)))
+
+    loader = AsyncWebFileLoader(on_response_hook=hook)
+    assert loader.content_fetcher.on_response_hook is hook
+    doc = await loader.fetch("gpt-4")
+
+    assert not doc.empty
+    assert seen == [("gpt-4", "application/pdf", GPT4_DOC_PATH.stat().st_size)]
+
+    assert AsyncWebFileLoader().content_fetcher.on_response_hook is None
+
+
 if __name__ == "__main__":
     pytest.main(["-q", "--show-capture=all", Path(__file__), "-rapP"])
