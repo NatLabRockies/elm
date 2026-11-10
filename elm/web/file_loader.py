@@ -180,6 +180,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         use_scrapling_stealth=False,
         num_pw_html_retries=3,
         on_response_hook=None,
+        on_error_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -252,6 +253,11 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             while fetching content. See
             :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
             details. By default, ``None``.
+        on_error_hook : callable, optional
+            Coroutine function called when content could not be fetched
+            because no response was received. See
+            :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
+            details. By default, ``None``.
         """
         super().__init__(file_cache_coroutine=file_cache_coroutine)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
@@ -259,7 +265,8 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.content_fetcher = AsyncFetchWithRetry(
             header_template=header_template, verify_ssl=verify_ssl,
-            aget_kwargs=aget_kwargs, on_response_hook=on_response_hook)
+            aget_kwargs=aget_kwargs, on_response_hook=on_response_hook,
+            on_error_hook=on_error_hook)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
             html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
@@ -299,7 +306,7 @@ class AsyncFetchWithRetry:
 
     def __init__(self, header_template=None, verify_ssl=True,
                  aget_kwargs=None, client_kwargs=None,
-                 on_response_hook=None):
+                 on_response_hook=None, on_error_hook=None):
         """
 
         Parameters
@@ -328,8 +335,18 @@ class AsyncFetchWithRetry:
             since :meth:`fetch` returns just the content. It can also be
             set after initialization via the attribute of the same name.
             By default, ``None``.
+        on_error_hook : callable, optional
+            Coroutine function called when a fetch gives up without
+            ever receiving a response (e.g. the connection failed on
+            every retry). It is awaited as ``on_error_hook(url, error)``,
+            where `error` is the exception raised by the last attempt.
+            :meth:`fetch` only returns ``None`` in that case, so this is
+            how a caller learns why. It can also be set after
+            initialization via the attribute of the same name.
+            By default, ``None``.
         """
         self.on_response_hook = on_response_hook
+        self.on_error_hook = on_error_hook
         self.get_kwargs = {
             "headers": _header_from_template(header_template),
             "ssl": None if verify_ssl else False,
@@ -355,8 +372,10 @@ class AsyncFetchWithRetry:
             try:
                 logger.debug("Fetching content from %r", url)
                 return await self._fetch_content_with_retry(url, session)
-            except ELMRuntimeError:
+            except ELMRuntimeError as e:
                 logger.exception("Could not fetch content from %r", url)
+                if self.on_error_hook is not None:
+                    await self.on_error_hook(url, e.__cause__ or e)
                 return None
 
     @async_retry_with_exponential_backoff(
