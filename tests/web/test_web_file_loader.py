@@ -265,7 +265,8 @@ async def test_async_file_loader_error_hook(monkeypatch):
     assert loader.content_fetcher.on_error_hook is hook
     assert await loader.content_fetcher.fetch("gpt-4") is None
 
-    (url, error), = seen
+    assert len(seen) == 1
+    url, error = seen[0]
     assert url == "gpt-4"
     assert isinstance(error, aiohttp.ClientConnectionError)
     assert str(error) == "connection refused"

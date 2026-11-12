@@ -269,8 +269,10 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             on_error_hook=on_error_hook)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
-            html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
-            browser_semaphore=browser_semaphore, use_scrapling_stealth=use_scrapling_stealth,
+            html_read_kwargs=html_read_kwargs,
+            html_read_coroutine=html_read_coroutine,
+            browser_semaphore=browser_semaphore,
+            use_scrapling_stealth=use_scrapling_stealth,
             num_pw_html_retries=num_pw_html_retries)
 
     async def _fetch_doc(self, url):
