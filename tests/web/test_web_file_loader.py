@@ -16,6 +16,7 @@ from elm import TEST_DATA_DIR
 from elm.web.file_loader import AsyncWebFileLoader, AsyncLocalFileLoader
 from elm.web.document import PDFDocument, HTMLDocument
 import elm.web.html_pw
+import elm.utilities.retry
 
 GPT4_DOC_PATH = Path(TEST_DATA_DIR) / "GPT-4.pdf"
 WHATCOM_DOC_PATH = Path(TEST_DATA_DIR) / "Whatcom.txt"
@@ -213,6 +214,62 @@ async def test_async_local_file_loader_basic_pdf():
     assert doc.attrs["source_fp"] == GPT4_DOC_PATH
     assert "test_1" not in doc.attrs
     assert "cache_fn" not in doc.attrs
+
+
+@pytest.mark.asyncio
+async def test_async_file_loader_response_hook(monkeypatch):
+    """Test the response hook receives each fetched URL's response"""
+
+    monkeypatch.setattr(
+        aiohttp.ClientSession,
+        "get",
+        patched_get,
+        raising=True,
+    )
+
+    seen = []
+
+    async def hook(url, response, body):
+        seen.append((url, response.content_type, len(body)))
+
+    loader = AsyncWebFileLoader(on_response_hook=hook)
+    assert loader.content_fetcher.on_response_hook is hook
+    doc = await loader.fetch("gpt-4")
+
+    assert not doc.empty
+    assert seen == [("gpt-4", "application/pdf", GPT4_DOC_PATH.stat().st_size)]
+
+    assert AsyncWebFileLoader().content_fetcher.on_response_hook is None
+
+
+@pytest.mark.asyncio
+async def test_async_file_loader_error_hook(monkeypatch):
+    """Test the error hook reports why no response was received"""
+
+    async def no_sleep(*__, **___):
+        """Skip the wait between retries"""
+
+    monkeypatch.setattr(elm.utilities.retry.asyncio, "sleep", no_sleep)
+
+    def refuse(session, url, *args, **kwargs):
+        raise aiohttp.ClientConnectionError("connection refused")
+
+    monkeypatch.setattr(aiohttp.ClientSession, "get", refuse, raising=True)
+
+    seen = []
+
+    async def hook(url, error):
+        seen.append((url, error))
+
+    loader = AsyncWebFileLoader(on_error_hook=hook)
+    assert loader.content_fetcher.on_error_hook is hook
+    assert await loader.content_fetcher.fetch("gpt-4") is None
+
+    assert len(seen) == 1
+    url, error = seen[0]
+    assert url == "gpt-4"
+    assert isinstance(error, aiohttp.ClientConnectionError)
+    assert str(error) == "connection refused"
 
 
 if __name__ == "__main__":
