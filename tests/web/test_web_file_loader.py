@@ -319,7 +319,8 @@ async def test_fetch_hook_receives_the_error_of_a_failed_fetch():
     doc = await loader.fetch("gpt-4")
 
     assert doc.empty
-    ((source, hooked_doc, error),) = seen
+    assert len(seen) == 1
+    source, hooked_doc, error = seen[0]
     assert source == "gpt-4"
     assert hooked_doc is doc
     assert isinstance(error, ValueError)
