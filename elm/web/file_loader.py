@@ -2,6 +2,7 @@
 """ELM Web file loader class."""
 import asyncio
 import logging
+import time
 from pathlib import Path
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -53,6 +54,7 @@ class BaseAsyncFileLoader(ABC):
 
     def __init__(self,
                  file_cache_coroutine=None,
+                 on_fetch_hook=None,
                  **__,  # consume any extra kwargs
                  ):
         """
@@ -66,8 +68,17 @@ class BaseAsyncFileLoader(ABC):
             argument and the file content to be written as the second
             argument. If this method is not provided, no document
             caching is performed. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every :meth:`fetch`, to
+            observe what each source produced (for example, to log or
+            time document loads). It is awaited as
+            ``on_fetch_hook(source, doc, error, seconds)``, where `doc`
+            is the document returned (empty if the load failed), `error`
+            is the exception that made it fail (``None`` otherwise), and
+            `seconds` is how long the fetch took. By default, ``None``.
         """
         self.file_cache_coroutine = file_cache_coroutine
+        self.on_fetch_hook = on_fetch_hook
 
     async def fetch_all(self, *sources):
         """Fetch documents for all requested sources.
@@ -104,6 +115,8 @@ class BaseAsyncFileLoader(ABC):
             Document instance containing text, if the load was
             successful.
         """
+        started = time.monotonic()
+        error = None
         try:
             doc, raw = await self._fetch_doc_with_url_in_metadata(source)
         except KeyboardInterrupt:
@@ -113,9 +126,13 @@ class BaseAsyncFileLoader(ABC):
                    "%s :")
             err_type = type(e)
             logger.exception(msg, err_type, source)
-            return HTMLDocument(pages=[])
+            doc, error = HTMLDocument(pages=[]), e
+        else:
+            doc = await self._cache_doc(doc, raw)
 
-        doc = await self._cache_doc(doc, raw)
+        if self.on_fetch_hook is not None:
+            await self.on_fetch_hook(source, doc, error,
+                                     time.monotonic() - started)
         return doc
 
     async def _fetch_doc_with_url_in_metadata(self, source):
@@ -181,6 +198,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         num_pw_html_retries=3,
         on_response_hook=None,
         on_error_hook=None,
+        on_fetch_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -258,8 +276,14 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             because no response was received. See
             :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
             details. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every fetch with what the
+            source produced. See
+            :class:`~elm.web.file_loader.BaseAsyncFileLoader` for
+            details. By default, ``None``.
         """
-        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        super().__init__(file_cache_coroutine=file_cache_coroutine,
+                         on_fetch_hook=on_fetch_hook)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
         self.pdf_read_kwargs = pdf_read_kwargs or {}
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
@@ -547,6 +571,7 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
         pdf_ocr_read_coroutine=None,
         file_cache_coroutine=None,
         doc_attrs=None,
+        on_fetch_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -592,8 +617,14 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
         doc_attrs : dict, optional
             Additional document attributes to add to each loaded
             document. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every fetch with what the
+            source produced. See
+            :class:`~elm.web.file_loader.BaseAsyncFileLoader` for
+            details. By default, ``None``.
         """
-        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        super().__init__(file_cache_coroutine=file_cache_coroutine,
+                         on_fetch_hook=on_fetch_hook)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_file
         self.html_read_coroutine = html_read_coroutine or _read_html_file
         self.pdf_read_kwargs = pdf_read_kwargs or {}
