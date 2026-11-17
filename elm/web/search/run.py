@@ -684,7 +684,10 @@ def _init_se(se_name, kwargs):
 
     # Cannot use 'pop' here because _run_search is invoked once per query.
     init_kwargs.update(kwargs.get(kwarg_key, {}))
-    return se_class(**init_kwargs), uses_browser
+    search_engine = se_class(**init_kwargs)
+    if kwargs.get("on_search_hook") is not None:
+        search_engine.on_search_hook = kwargs["on_search_hook"]
+    return search_engine, uses_browser
 
 
 def _down_select_urls(search_results, search_engines, num_urls=5,

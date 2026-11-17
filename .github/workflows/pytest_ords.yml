@@ -5,6 +5,9 @@ on: pull_request
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
     strategy:
       fail-fast: false
       matrix:
@@ -34,10 +37,8 @@ jobs:
       shell: bash
     - name: Install dependencies
       run: |
-        conda install -y pip
-        conda install -c conda-forge poppler
+        conda install -y -c conda-forge pip poppler pdftotext
         python -m pip install --upgrade pip
-        python -m pip install pdftotext
         python -m pip install pytest
         python -m pip install pytest-asyncio
         python -m pip install pytest-mock

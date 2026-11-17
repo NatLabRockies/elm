@@ -204,5 +204,21 @@ async def test_search_with_fallback_with_attrs_empty_queries(monkeypatch):
     assert await search_with_fallback_with_attrs([]) == []
 
 
+def test_init_se_sets_search_hook():
+    """Test that a search hook given to the run functions is attached"""
+
+    async def hook(**kwargs):
+        """Do nothing"""
+
+    kwargs = {"google_cse_api_kwargs": {"api_key": "test_key"},
+              "on_search_hook": hook}
+    se, *__ = _init_se("APIGoogleCSESearch", kwargs)
+    assert se.on_search_hook is hook
+    assert se.api_key == "test_key"
+
+    se, *__ = _init_se("APIGoogleCSESearch", {})
+    assert se.on_search_hook is None
+
+
 if __name__ == "__main__":
     pytest.main(["-q", "--show-capture=all", Path(__file__), "-rapP"])

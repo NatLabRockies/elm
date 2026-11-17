@@ -4,13 +4,12 @@ The ordinance web scraping and data extraction portion of this codebase
 required a few extra dependencies that do not come out-of-the-box with the base
 ELM software. To set up ELM for ordinances, first create a conda environment.
 We have had some issues using python 3.9 and recommend using python 3.11. Then,
-_before installing ELM_, run the poppler installation:
+activate that environment and, _before installing ELM_, install Poppler and
+the Python `pdftotext` bindings together from conda-forge:
 
-    $ conda install -c conda-forge poppler
+    $ conda install -c conda-forge poppler pdftotext
 
-Then, install `pdftotext`:
-
-    $ pip install pdftotext
+This uses compatible prebuilt packages on Windows, macOS, and Linux.
 
 (OPTIONAL) If you want to have access to Optical Character Recognition (OCR) for PDF parsing, you should also install pytesseract during this step. Note that there may be additional OS-specific installation steps to get tesseract working properly (see the [pytesseract install instructions](https://pypi.org/project/pytesseract/))
 

@@ -2,6 +2,7 @@
 """ELM Web file loader class."""
 import asyncio
 import logging
+import time
 from pathlib import Path
 from abc import ABC, abstractmethod
 from warnings import warn
@@ -53,6 +54,7 @@ class BaseAsyncFileLoader(ABC):
 
     def __init__(self,
                  file_cache_coroutine=None,
+                 on_fetch_hook=None,
                  **__,  # consume any extra kwargs
                  ):
         """
@@ -66,8 +68,17 @@ class BaseAsyncFileLoader(ABC):
             argument and the file content to be written as the second
             argument. If this method is not provided, no document
             caching is performed. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every :meth:`fetch`, to
+            observe what each source produced (for example, to log or
+            time document loads). It is awaited as
+            ``on_fetch_hook(source, doc, error, seconds)``, where `doc`
+            is the document returned (empty if the load failed), `error`
+            is the exception that made it fail (``None`` otherwise), and
+            `seconds` is how long the fetch took. By default, ``None``.
         """
         self.file_cache_coroutine = file_cache_coroutine
+        self.on_fetch_hook = on_fetch_hook
 
     async def fetch_all(self, *sources):
         """Fetch documents for all requested sources.
@@ -104,6 +115,8 @@ class BaseAsyncFileLoader(ABC):
             Document instance containing text, if the load was
             successful.
         """
+        started = time.monotonic()
+        error = None
         try:
             doc, raw = await self._fetch_doc_with_url_in_metadata(source)
         except KeyboardInterrupt:
@@ -113,9 +126,13 @@ class BaseAsyncFileLoader(ABC):
                    "%s :")
             err_type = type(e)
             logger.exception(msg, err_type, source)
-            return HTMLDocument(pages=[])
+            doc, error = HTMLDocument(pages=[]), e
+        else:
+            doc = await self._cache_doc(doc, raw)
 
-        doc = await self._cache_doc(doc, raw)
+        if self.on_fetch_hook is not None:
+            await self.on_fetch_hook(source, doc, error,
+                                     time.monotonic() - started)
         return doc
 
     async def _fetch_doc_with_url_in_metadata(self, source):
@@ -179,6 +196,9 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         browser_semaphore=None,
         use_scrapling_stealth=False,
         num_pw_html_retries=3,
+        on_response_hook=None,
+        on_error_hook=None,
+        on_fetch_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -246,18 +266,37 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             attempts and retrieval success. Note that the minimum number
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
+        on_response_hook : callable, optional
+            Coroutine function called with every HTTP response received
+            while fetching content. See
+            :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
+            details. By default, ``None``.
+        on_error_hook : callable, optional
+            Coroutine function called when content could not be fetched
+            because no response was received. See
+            :class:`~elm.web.file_loader.AsyncFetchWithRetry` for
+            details. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every fetch with what the
+            source produced. See
+            :class:`~elm.web.file_loader.BaseAsyncFileLoader` for
+            details. By default, ``None``.
         """
-        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        super().__init__(file_cache_coroutine=file_cache_coroutine,
+                         on_fetch_hook=on_fetch_hook)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_doc
         self.pdf_read_kwargs = pdf_read_kwargs or {}
         self.pdf_ocr_read_coroutine = pdf_ocr_read_coroutine
         self.content_fetcher = AsyncFetchWithRetry(
             header_template=header_template, verify_ssl=verify_ssl,
-            aget_kwargs=aget_kwargs)
+            aget_kwargs=aget_kwargs, on_response_hook=on_response_hook,
+            on_error_hook=on_error_hook)
         self.html_loader = AsyncHTMLLoader(
             pw_launch_kwargs=pw_launch_kwargs,
-            html_read_kwargs=html_read_kwargs,html_read_coroutine=html_read_coroutine,
-            browser_semaphore=browser_semaphore, use_scrapling_stealth=use_scrapling_stealth,
+            html_read_kwargs=html_read_kwargs,
+            html_read_coroutine=html_read_coroutine,
+            browser_semaphore=browser_semaphore,
+            use_scrapling_stealth=use_scrapling_stealth,
             num_pw_html_retries=num_pw_html_retries)
 
     async def _fetch_doc(self, url):
@@ -292,7 +331,8 @@ class AsyncFetchWithRetry:
     """Loader for fetching content from the web with retry attempts"""
 
     def __init__(self, header_template=None, verify_ssl=True,
-                 aget_kwargs=None, client_kwargs=None):
+                 aget_kwargs=None, client_kwargs=None,
+                 on_response_hook=None, on_error_hook=None):
         """
 
         Parameters
@@ -307,7 +347,32 @@ class AsyncFetchWithRetry:
         aget_kwargs : dict, optional
             Other kwargs to pass to :meth:`aiohttp.ClientSession.get`.
             By default, ``None``.
+        client_kwargs : dict, optional
+            Other kwargs to pass to :class:`aiohttp.ClientSession`.
+            By default, ``None``.
+        on_response_hook : callable, optional
+            Coroutine function called with every HTTP response received,
+            including error responses and each retry. It is awaited as
+            ``on_response_hook(url, response, body)``, where `url` is
+            the URL passed to :meth:`fetch`, `response` is the
+            :class:`aiohttp.ClientResponse` (status, headers, final URL,
+            and redirect history), and `body` is the response content in
+            bytes. This is the only place that information is available,
+            since :meth:`fetch` returns just the content. It can also be
+            set after initialization via the attribute of the same name.
+            By default, ``None``.
+        on_error_hook : callable, optional
+            Coroutine function called when a fetch gives up without
+            ever receiving a response (e.g. the connection failed on
+            every retry). It is awaited as ``on_error_hook(url, error)``,
+            where `error` is the exception raised by the last attempt.
+            :meth:`fetch` only returns ``None`` in that case, so this is
+            how a caller learns why. It can also be set after
+            initialization via the attribute of the same name.
+            By default, ``None``.
         """
+        self.on_response_hook = on_response_hook
+        self.on_error_hook = on_error_hook
         self.get_kwargs = {
             "headers": _header_from_template(header_template),
             "ssl": None if verify_ssl else False,
@@ -333,8 +398,10 @@ class AsyncFetchWithRetry:
             try:
                 logger.debug("Fetching content from %r", url)
                 return await self._fetch_content_with_retry(url, session)
-            except ELMRuntimeError:
+            except ELMRuntimeError as e:
                 logger.exception("Could not fetch content from %r", url)
+                if self.on_error_hook is not None:
+                    await self.on_error_hook(url, e.__cause__ or e)
                 return None
 
     @async_retry_with_exponential_backoff(
@@ -351,6 +418,8 @@ class AsyncFetchWithRetry:
         """Fetch content from URL with several retry attempts"""
         async with session.get(url, **self.get_kwargs) as response:
             body = await response.read()
+            if self.on_response_hook is not None:
+                await self.on_response_hook(url, response, body)
             headers = response.headers
             ct = response.content_type.casefold()
             charset = response.charset or 'utf-8'
@@ -502,6 +571,7 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
         pdf_ocr_read_coroutine=None,
         file_cache_coroutine=None,
         doc_attrs=None,
+        on_fetch_hook=None,
         **__,  # consume any extra kwargs
     ):
         """
@@ -547,8 +617,14 @@ class AsyncLocalFileLoader(BaseAsyncFileLoader):
         doc_attrs : dict, optional
             Additional document attributes to add to each loaded
             document. By default, ``None``.
+        on_fetch_hook : callable, optional
+            Coroutine function called after every fetch with what the
+            source produced. See
+            :class:`~elm.web.file_loader.BaseAsyncFileLoader` for
+            details. By default, ``None``.
         """
-        super().__init__(file_cache_coroutine=file_cache_coroutine)
+        super().__init__(file_cache_coroutine=file_cache_coroutine,
+                         on_fetch_hook=on_fetch_hook)
         self.pdf_read_coroutine = pdf_read_coroutine or _read_pdf_file
         self.html_read_coroutine = html_read_coroutine or _read_html_file
         self.pdf_read_kwargs = pdf_read_kwargs or {}
