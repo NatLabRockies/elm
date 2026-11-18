@@ -196,6 +196,7 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
         browser_semaphore=None,
         use_scrapling_stealth=False,
         num_pw_html_retries=3,
+        keep_raw_html=False,
         on_response_hook=None,
         on_error_hook=None,
         on_fetch_hook=None,
@@ -266,6 +267,11 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             attempts and retrieval success. Note that the minimum number
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
+        keep_raw_html : bool, default=False
+            Option to store the HTML each HTML document was read from
+            under the ``"raw_html"`` key of its ``attrs``. See
+            :class:`~elm.web.file_loader.AsyncHTMLLoader` for details.
+            By default, ``False``.
         on_response_hook : callable, optional
             Coroutine function called with every HTTP response received
             while fetching content. See
@@ -297,7 +303,8 @@ class AsyncWebFileLoader(BaseAsyncFileLoader):
             html_read_coroutine=html_read_coroutine,
             browser_semaphore=browser_semaphore,
             use_scrapling_stealth=use_scrapling_stealth,
-            num_pw_html_retries=num_pw_html_retries)
+            num_pw_html_retries=num_pw_html_retries,
+            keep_raw_html=keep_raw_html)
 
     async def _fetch_doc(self, url):
         """Fetch a doc by trying pdf read, then HTML read, then PDF OCR"""
@@ -434,7 +441,8 @@ class AsyncHTMLLoader:
 
     def __init__(self, pw_launch_kwargs=None, html_read_kwargs=None,
                  html_read_coroutine=None, browser_semaphore=None,
-                 use_scrapling_stealth=False, num_pw_html_retries=3):
+                 use_scrapling_stealth=False, num_pw_html_retries=3,
+                 keep_raw_html=False):
         """
 
         Parameters
@@ -467,6 +475,13 @@ class AsyncHTMLLoader:
             attempts and retrieval success. Note that the minimum number
             of attempts will always be 2, even if the user provides a
             value smaller than this. By default, ``3``.
+        keep_raw_html : bool, default=False
+            Option to store the HTML each document was read from under
+            the ``"raw_html"`` key of its ``attrs``. This also applies
+            to a page with no readable text, which still gives an empty
+            document, so its links and frames can be inspected. For
+            such a page the longest HTML that any load attempt returned
+            is stored. By default, ``False``.
         """
         self.pw_launch_kwargs = pw_launch_kwargs or {}
         self.html_read_coroutine = html_read_coroutine or _read_html_doc
@@ -474,6 +489,7 @@ class AsyncHTMLLoader:
         self.uss = use_scrapling_stealth
         self.browser_semaphore = browser_semaphore
         self.num_pw_html_retries = num_pw_html_retries
+        self.keep_raw_html = keep_raw_html
 
     async def fetch(self, url, raw_content=None, ct=None, charset=None):
         """Load an HTML doc from a URL
@@ -503,31 +519,47 @@ class AsyncHTMLLoader:
         -------
         HTMLDocument
             Document instance containing text, if the load was
-            successful, else an empty document.
+            successful, else an empty document. With `keep_raw_html`,
+            either one holds the HTML that was loaded in
+            ``attrs["raw_html"]``.
         """
         logger.debug("Fetching HTML content from %r", url)
-        doc = await self._fetch_html_using_pw_with_retry(url)
+        doc, html = await self._fetch_html_using_pw_with_retry(url)
         if not doc.empty:
-            return doc
+            return self._with_raw_html(doc, html)
 
         can_process_response = (raw_content is not None
                                 and ct is not None
                                 and charset is not None
                                 and "text" in ct)
         if not can_process_response:
-            return HTMLDocument(pages=[])
+            return self._with_raw_html(HTMLDocument(pages=[]), html)
 
         logger.debug("HTML read with playwright failed; fetching HTML "
                      "content from response with content type %r and "
                      "charset %r for %r", ct, charset, url)
-        doc = await self._try_load_doc_from_response_text(raw_content,
-                                                          charset)
+        doc, text = await self._try_load_doc_from_response_text(raw_content,
+                                                                charset)
+        if doc.empty:
+            text = max(html, text, key=len)
+        return self._with_raw_html(doc, text)
+
+    def _with_raw_html(self, doc, html):
+        """Store the HTML a document was read from, if requested"""
+        if self.keep_raw_html:
+            doc.attrs["raw_html"] = html
         return doc
 
     async def _fetch_html_using_pw_with_retry(self, url):
-        """Fetch HTML content with several retry attempts"""
+        """Fetch HTML content with several retry attempts
+
+        Returns the document and the HTML it was read from. If no
+        attempt gave a document with text, the document is empty and
+        the HTML is the longest that any attempt returned.
+        """
         num_attempts = max(1, int(self.num_pw_html_retries) - 1)
         max_attempts = num_attempts + 1
+        longest = ""
         for attempt in range(num_attempts):
             logger.debug("HTML read for %r (attempt %d of %d)",
                          url, attempt + 1, max_attempts)
@@ -537,7 +569,8 @@ class AsyncHTMLLoader:
                                            **self.pw_launch_kwargs)
             doc = await self.html_read_coroutine(text, **self.html_read_kwargs)
             if not doc.empty:
-                return doc
+                return doc, text
+            longest = max(longest, text, key=len)
 
         logger.debug("HTML read for %r (attempt %d of %d) with "
                      "load_state='domcontentloaded'",
@@ -547,16 +580,20 @@ class AsyncHTMLLoader:
                                        use_scrapling_stealth=self.uss,
                                        load_state="domcontentloaded",
                                        **self.pw_launch_kwargs)
-        return await self.html_read_coroutine(text, **self.html_read_kwargs)
+        doc = await self.html_read_coroutine(text, **self.html_read_kwargs)
+        if doc.empty:
+            text = max(longest, text, key=len)
+        return doc, text
 
     async def _try_load_doc_from_response_text(self, raw_content, charset):
-        """Try to load document by decoding response text"""
+        """Try to load document and its text by decoding the response"""
         try:
             text = raw_content.decode(charset)
         except Exception:
-            return HTMLDocument(pages=[])
+            return HTMLDocument(pages=[]), ""
 
-        return await self.html_read_coroutine(text, **self.html_read_kwargs)
+        doc = await self.html_read_coroutine(text, **self.html_read_kwargs)
+        return doc, text
 
 
 class AsyncLocalFileLoader(BaseAsyncFileLoader):
