@@ -1,0 +1,31 @@
+elm.web.search.yahoo.SerpAPIYahooSearch
+=======================================
+
+.. currentmodule:: elm.web.search.yahoo
+
+.. autoclass:: SerpAPIYahooSearch
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~SerpAPIYahooSearch.results
+   
+   
+
+   
+   
+   .. rubric:: Attributes
+
+   .. autosummary::
+   
+      ~SerpAPIYahooSearch.API_KEY_VAR
+      ~SerpAPIYahooSearch.on_search_hook
+   
+   

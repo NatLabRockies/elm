@@ -1,0 +1,26 @@
+elm.web.website\_crawl.CrawlOutcome
+===================================
+
+.. currentmodule:: elm.web.website_crawl
+
+.. autoclass:: CrawlOutcome
+   :members:
+   :show-inheritance:
+   :inherited-members:
+   :special-members: __call__, __add__, __mul__
+
+   
+   
+   .. rubric:: Methods
+
+   .. autosummary::
+   
+      ~CrawlOutcome.log_completion
+      ~CrawlOutcome.record_document
+      ~CrawlOutcome.record_step
+   
+   
+
+   
+   
+   

@@ -1,0 +1,41 @@
+elm.web.search.run
+==================
+
+.. automodule:: elm.web.search.run
+
+   
+   
+   .. rubric:: Module attributes
+
+   .. autosummary::
+      :toctree:
+   
+      SEARCH_ENGINE_OPTIONS
+   
+   
+
+   
+   
+   .. rubric:: Functions
+
+   .. autosummary::
+      :toctree:
+   
+      load_docs
+      search_all_se
+      search_with_fallback
+      search_with_fallback_with_attrs
+      web_search_links_as_docs
+   
+   
+
+   
+   
+   
+
+   
+   
+   
+
+
+
