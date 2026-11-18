@@ -13,7 +13,9 @@ import pytest
 import pdftotext
 
 from elm import TEST_DATA_DIR
-from elm.web.file_loader import AsyncWebFileLoader, AsyncLocalFileLoader
+from elm.web.file_loader import (AsyncHTMLLoader, AsyncLocalFileLoader,
+                                 AsyncWebFileLoader)
+import elm.web.file_loader
 from elm.web.document import PDFDocument, HTMLDocument
 import elm.web.html_pw
 import elm.utilities.retry
@@ -80,6 +82,41 @@ async def test_async_file_loader_basic_pdf(monkeypatch):
     assert doc.text == truth.text
     assert doc.attrs["source"] == "gpt-4"
     assert "cache_fn" not in doc.attrs
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("keep_raw_html", [False, True])
+async def test_html_loader_keeps_raw_html(monkeypatch, keep_raw_html):
+    """`AsyncHTMLLoader` stores the HTML a document was read from"""
+    viewer = '<html><body><iframe src="/law.pdf"></iframe></body></html>'
+    article = "<html><body><p>" + "Enacted ordinance text. " * 5 + "</p>"
+    pages = {"https://example.com/viewer": ["", viewer, "<html></html>"],
+             "https://example.com/article": [article]}
+
+    async def load(url, *__, **___):
+        return pages[url].pop(0)
+
+    monkeypatch.setattr(elm.web.file_loader, "load_html_with_pw", load)
+    loader = AsyncHTMLLoader(keep_raw_html=keep_raw_html)
+    with_text = await loader.fetch("https://example.com/article")
+    no_text = await loader.fetch("https://example.com/viewer")
+
+    assert not with_text.empty
+    assert no_text.empty
+    if not keep_raw_html:
+        assert "raw_html" not in with_text.attrs
+        assert "raw_html" not in no_text.attrs
+        return
+    assert with_text.attrs["raw_html"] == article
+    # no attempt gave text, so the longest HTML loaded is kept
+    assert no_text.attrs["raw_html"] == viewer
+
+
+@pytest.mark.asyncio
+async def test_web_loader_passes_keep_raw_html_to_html_loader():
+    """`AsyncWebFileLoader` hands `keep_raw_html` to its HTML loader"""
+    assert AsyncWebFileLoader(keep_raw_html=True).html_loader.keep_raw_html
+    assert not AsyncWebFileLoader().html_loader.keep_raw_html
 
 
 @pytest.mark.asyncio
